@@ -1,7 +1,5 @@
 # Focus Clock Widget do Notion
 
-Retro-HUD zegar do osadzenia w Notion przez `/embed`.
-
 ## Pliki
 
 - `index.html`
