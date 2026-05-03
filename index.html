@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus Clock Widget</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="widget-shell" aria-label="Focus Clock Widget">
+    <section class="focus-card">
+      <div class="scanline"></div>
+      <div class="grid-overlay"></div>
+
+      <header class="card-header">
+        <div class="status-dot"></div>
+        <span>PRZEGLĄD</span>
+      </header>
+
+      <section class="clock-panel">
+        <div class="label">FOCUS</div>
+
+        <div class="time-frame">
+          <div class="corner corner-tl"></div>
+          <div class="corner corner-tr"></div>
+          <div class="corner corner-bl"></div>
+          <div class="corner corner-br"></div>
+          <div id="time" class="time">15:45</div>
+        </div>
+
+        <div id="date" class="date">Czwartek, 15 maja 2025</div>
+
+        <div class="year-progress">
+          <span class="calendar-icon" aria-hidden="true">▣</span>
+          <span id="dayOfYear">Dzień 135 / 365</span>
+        </div>
+      </section>
+
+      <footer class="bottom-line">
+        <div class="bar bar-a"></div>
+        <div class="bar bar-b"></div>
+        <div class="bar bar-c"></div>
+      </footer>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
