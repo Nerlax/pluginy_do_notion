@@ -13,6 +13,24 @@ function capitalizeFirst(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+// Tydzień miesiąca liczony od poniedziałku
+function getWeekOfMonth(date) {
+  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+  const firstDayOffset = (firstDayOfMonth.getDay() + 6) % 7; // pon=0, wt=1 ... ndz=6
+  return Math.ceil((date.getDate() + firstDayOffset) / 7);
+}
+
+function getWeeksInMonth(date) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+
+  const firstDayOffset = (firstDayOfMonth.getDay() + 6) % 7; // pon=0
+  return Math.ceil((lastDayOfMonth.getDate() + firstDayOffset) / 7);
+}
+
 function updateClock() {
   const now = new Date();
 
@@ -32,9 +50,13 @@ function updateClock() {
   const day = getDayOfYear(now);
   const total = getDaysInYear(now.getFullYear());
 
+  const weekOfMonth = getWeekOfMonth(now);
+  const weeksInMonth = getWeeksInMonth(now);
+
   document.getElementById("time").textContent = time;
   document.getElementById("date").textContent = capitalizeFirst(date);
   document.getElementById("dayOfYear").textContent = `Dzień ${day} / ${total}`;
+  document.getElementById("weekOfMonth").textContent = `Tydzień ${weekOfMonth} / ${weeksInMonth} miesiąca`;
 }
 
 updateClock();
