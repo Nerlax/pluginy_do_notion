@@ -13,22 +13,31 @@ function capitalizeFirst(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// Tydzień miesiąca liczony od poniedziałku
-function getWeekOfMonth(date) {
-  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  const firstDayOffset = (firstDayOfMonth.getDay() + 6) % 7; // pon=0, wt=1 ... ndz=6
-  return Math.ceil((date.getDate() + firstDayOffset) / 7);
+// Numer tygodnia ISO: poniedziałek jako początek tygodnia
+function getISOWeek(date) {
+  const tempDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNumber = tempDate.getUTCDay() || 7;
+
+  tempDate.setUTCDate(tempDate.getUTCDate() + 4 - dayNumber);
+
+  const yearStart = new Date(Date.UTC(tempDate.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+
+  return weekNumber;
 }
 
-function getWeeksInMonth(date) {
-  const year = date.getFullYear();
-  const month = date.getMonth();
+function getISOWeeksInYear(year) {
+  const dec28 = new Date(Date.UTC(year, 11, 28));
+  return getISOWeek(dec28);
+}
 
-  const firstDayOfMonth = new Date(year, month, 1);
-  const lastDayOfMonth = new Date(year, month + 1, 0);
+function getISOWeekYear(date) {
+  const tempDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNumber = tempDate.getUTCDay() || 7;
 
-  const firstDayOffset = (firstDayOfMonth.getDay() + 6) % 7; // pon=0
-  return Math.ceil((lastDayOfMonth.getDate() + firstDayOffset) / 7);
+  tempDate.setUTCDate(tempDate.getUTCDate() + 4 - dayNumber);
+
+  return tempDate.getUTCFullYear();
 }
 
 function updateClock() {
@@ -48,15 +57,16 @@ function updateClock() {
   });
 
   const day = getDayOfYear(now);
-  const total = getDaysInYear(now.getFullYear());
+  const totalDays = getDaysInYear(now.getFullYear());
 
-  const weekOfMonth = getWeekOfMonth(now);
-  const weeksInMonth = getWeeksInMonth(now);
+  const isoWeek = getISOWeek(now);
+  const isoWeekYear = getISOWeekYear(now);
+  const totalWeeks = getISOWeeksInYear(isoWeekYear);
 
   document.getElementById("time").textContent = time;
   document.getElementById("date").textContent = capitalizeFirst(date);
-  document.getElementById("dayOfYear").textContent = `Dzień ${day} / ${total}`;
-  document.getElementById("weekOfMonth").textContent = `Tydzień ${weekOfMonth} / ${weeksInMonth} miesiąca`;
+  document.getElementById("dayOfYear").textContent = `Dzień ${day} / ${totalDays}`;
+  document.getElementById("weekOfYear").textContent = `Tydzień ${isoWeek} / ${totalWeeks} roku`;
 }
 
 updateClock();
