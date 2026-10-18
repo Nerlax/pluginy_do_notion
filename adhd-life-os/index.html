@@ -165,6 +165,13 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
   }
 
   async function load(inputKey) {
+    if (!/^[A-Za-z0-9]{32,128}$/.test(inputKey)) {
+      $("connected").hidden = true;
+      $("login").hidden = false;
+      setStatus("loginStatus", "Klucz DSK_H2 musi mieć 32–128 znaków i zawierać tylko litery A–Z, a–z oraz cyfry 0–9. Zmień wartość sekretu w Cloudflare i wpisz nowy klucz.", true);
+      try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+      return;
+    }
     $("connectButton").disabled = true;
     $("refresh").disabled = true;
     setStatus($("connected").hidden ? "loginStatus" : "syncStatus", "Pobieranie danych…", false);
