@@ -49,11 +49,11 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
 </nav>
 
 <section id="login" class="panel">
-<h2>🔐 Połącz z Notion</h2>
-<p class="small">Wpisz wartość sekretu Cloudflare <strong>DSK_H2</strong> (nie token Notion). Klucz pozostaje na tym urządzeniu.</p>
+<h2>🔐 Dostęp do pulpitu</h2>
+<p class="small">Wprowadź klucz dostępu.</p>
 <form id="loginForm">
 <label for="apiKey" class="small">Klucz dostępu do pulpitu</label>
-<input id="apiKey" class="input" type="password" placeholder="Wpisz klucz DSK_H2" autocomplete="off" required>
+<input id="apiKey" class="input" type="password" placeholder="Klucz dostępu" autocomplete="off" required>
 <button type="submit" id="connectButton">Połącz i pobierz dane</button>
 </form>
 <p id="loginStatus" class="status" role="status"></p>
@@ -65,7 +65,7 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
 <button id="refresh" type="button" class="secondary">↻ Odśwież</button>
 <button id="logout" type="button" class="secondary">Rozłącz</button>
 </div>
-<h2>🎯 Teraz <span class="tag">Z NOTION</span></h2>
+<h2>🎯 Teraz</h2>
 <div id="tasks"></div>
 <h2>☀️ Wykonania nawyków</h2>
 <div id="habits"></div>
@@ -73,7 +73,7 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
 <div id="notes"></div>
 <p id="moreInfo" class="muted"></p>
 </section>
-<footer>Dane z Notion · odczyt bez możliwości edycji · API Cloudflare</footer>
+<footer>ADHD Life OS · Twój osobisty pulpit</footer>
 </main>
 <script>
 (function () {
@@ -157,18 +157,18 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
     });
     const capped = ["tasks","habits","notes"].filter(n => data[n]?.hasMore);
     $("moreInfo").textContent = capped.length
-      ? "Notion ma więcej rekordów: " + capped.join(", ") + ". Wyświetlana jest tylko pierwsza partia (do 100 rekordów na bazę)."
-      : "Dane są tylko do odczytu. Dotknij pozycji, aby otworzyć ją w Notion.";
+      ? "Dostępna jest tylko część wpisów. Otwórz pełne listy w widoku źródłowym."
+      : "Dane są tylko do odczytu. Dotknij pozycji, aby zobaczyć szczegóły.";
     $("login").hidden = true;
     $("connected").hidden = false;
     setStatus("syncStatus", "Zaktualizowano: " + new Date().toLocaleTimeString("pl-PL"), false);
   }
 
   async function load(inputKey) {
-    if (!/^[A-Za-z0-9]{32,128}$/.test(inputKey)) {
+    if (!/^[\x21-\x7E]{1,256}$/.test(inputKey)) {
       $("connected").hidden = true;
       $("login").hidden = false;
-      setStatus("loginStatus", "Klucz DSK_H2 musi mieć 32–128 znaków i zawierać tylko litery A–Z, a–z oraz cyfry 0–9. Zmień wartość sekretu w Cloudflare i wpisz nowy klucz.", true);
+      setStatus("loginStatus", "Nie można użyć tego klucza.", true);
       try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
       return;
     }
@@ -181,10 +181,10 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
         headers: { "Authorization": "Bearer " + inputKey },
         cache: "no-store"
       });
-      if (response.status === 401) throw new Error("Nieprawidłowy klucz DSK_H2 (401).");
-      if (!response.ok) throw new Error("Błąd API (HTTP " + response.status + "). Sprawdź uprawnienia baz i kod Workera.");
+      if (response.status === 401) throw new Error("Nie udało się zalogować. Sprawdź klucz.");
+      if (!response.ok) throw new Error("Nie udało się pobrać danych. Spróbuj ponownie później.");
       const data = await response.json();
-      if (!data.ok || !data.tasks || !data.habits || !data.notes) throw new Error("Nieoczekiwana odpowiedź API.");
+      if (!data.ok || !data.tasks || !data.habits || !data.notes) throw new Error("Nie udało się pobrać danych. Spróbuj ponownie później.");
       key = inputKey;
       try { localStorage.setItem(STORAGE_KEY, key); } catch (_) {}
       $("apiKey").value = "";
@@ -192,15 +192,7 @@ footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
     } catch (error) {
       $("connected").hidden = true;
       $("login").hidden = false;
-      const details = error instanceof Error ? error.name + ": " + error.message : String(error);
-      let health = "Test /health: nie wykonano";
-      try {
-        const probe = await fetch("https://adhd-life-os-api.noommys.workers.dev/health", { cache: "no-store" });
-        health = "Test /health: HTTP " + probe.status;
-      } catch (probeError) {
-        health = "Test /health: błąd połączenia (" + (probeError?.message || String(probeError)) + ")";
-      }
-      setStatus("loginStatus", "Diagnostyka połączenia — " + details + " | " + health, true);
+      setStatus("loginStatus", "Nie udało się połączyć. Sprawdź połączenie lub spróbuj ponownie później.", true);
     } finally {
       $("connectButton").disabled = false;
       $("refresh").disabled = false;
