@@ -1,0 +1,19 @@
+{
+  "name": "ADHD Life OS",
+  "short_name": "Life OS",
+  "description": "Mobilne centrum dowodzenia ADHD",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101527",
+  "theme_color": "#101527",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
