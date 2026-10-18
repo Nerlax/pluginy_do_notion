@@ -3,7 +3,7 @@
   "short_name": "Life OS",
   "description": "Mobilne centrum dowodzenia ADHD",
   "lang": "pl",
-  "start_url": "./",
+  "start_url": "./app.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#101527",
