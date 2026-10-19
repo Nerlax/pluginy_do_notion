@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101527">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Life OS">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="./icon.svg">
+<title>ADHD Life OS — Mobile</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101527;color:#f4f4ff;font:15px system-ui,-apple-system,sans-serif;min-height:100dvh}
+.app{max-width:560px;margin:auto;padding:16px;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+.hero{border-radius:24px;padding:62px 22px 22px;background:radial-gradient(circle at 85% 20%,#9575d7,transparent 50%),linear-gradient(140deg,#414a87,#15233b)}
+h1{font-size:25px;margin:0 0 7px}p{color:#ccd2e7;margin:0;line-height:1.45}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0 22px}
+.actions a{border:1px solid #ffffff2b;border-radius:15px;padding:13px 5px;text-align:center;color:#fff;text-decoration:none;background:#ffffff16;font-size:13px}
+.actions span{display:block;font-size:24px}h2{font-size:18px;margin:22px 0 10px}
+.card{border-radius:18px;padding:17px;margin-bottom:11px;background:linear-gradient(120deg,#29365b,#19243c);border:1px solid #ffffff1d}
+.habit{background:linear-gradient(110deg,#2b4b51,#1c293f)}.inbox{background:linear-gradient(110deg,#4d375e,#1c293f)}
+.muted{color:#bbc4db;font-size:12px;margin-top:5px;line-height:1.45}.row{display:flex;align-items:center;gap:12px}
+.tag{font-size:11px;color:#c5baff}.small{font-size:12px;color:#b8c5e5}
+.panel{border:1px solid #ffffff2d;background:#1d2944;border-radius:18px;padding:17px;margin-top:17px}
+.panel h2{margin:0 0 8px}.input{width:100%;padding:13px;border:1px solid #8c91bc;border-radius:11px;background:#111a31;color:#fff;font-size:16px;margin:12px 0}
+button{font:inherit;cursor:pointer;background:#aea0ff;color:#11152b;border:0;border-radius:12px;padding:11px 15px;font-weight:700}
+button:disabled{opacity:.6;cursor:default}.secondary{background:#2b3555;color:#eee;border:1px solid #586381}
+.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.status{font-size:13px;color:#cfd9ee;margin-top:10px;overflow-wrap:anywhere}.error{color:#ffb4bc}
+.card a{color:#fff;text-decoration:none}.card a:hover{text-decoration:underline}
+.empty{font-size:13px;color:#bac7df}.pill{font-size:11px;color:#bed6ff;border:1px solid #8395bb77;padding:4px 7px;border-radius:9px;white-space:nowrap}
+.itemrow{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
+[hidden]{display:none!important}
+
+/* Life OS visual v2: tropical neon bay — standalone image asset. */
+:root{--life-bg:#04111d;--life-panel:rgba(5,20,33,.85);--life-cyan:#29c5ce;--life-coral:#fc806d}
+body{background:radial-gradient(circle at 50% 5%,#0b3542 0%,#061723 46%,#030b13 100%);color:#e7f6f8}
+.app{max-width:600px;padding:16px 14px calc(40px + env(safe-area-inset-bottom))}
+.hero{position:relative;min-height:480px;border-radius:20px;overflow:hidden;isolation:isolate;display:flex;flex-direction:column;justify-content:flex-start;padding:32px 21px;background-color:#092030;background-image:linear-gradient(180deg,rgba(1,12,24,.33) 0%,rgba(1,12,24,.12) 46%,rgba(1,12,24,.16) 69%,rgba(1,12,24,.8) 100%),url("./assets/life-os-bay.png");background-size:cover;background-position:center 57%;border:1px solid rgba(57,184,204,.32);box-shadow:0 15px 36px #0008}
+.hero::before{content:"";position:absolute;inset:-8% -10%;pointer-events:none;z-index:0;background:radial-gradient(circle at 70% 62%,rgba(242,118,86,.2),transparent 34%);animation:life-glow 10s ease-in-out infinite alternate}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(180deg,rgba(0,10,21,.43),transparent 35%,transparent 72%,rgba(0,9,20,.46))}
+.hero>*{position:relative;z-index:1}
+.hero h1{font-size:clamp(30px,8vw,42px);color:#f3faf9;text-shadow:0 2px 14px #04111d}
+.hero p{max-width:265px;color:#dbf4f3;text-shadow:0 1px 8px #03121c}
+.hero .tag{color:#7fe7e7;letter-spacing:.14em;font-weight:750}
+.actions{position:relative;z-index:2;margin-top:-30px;gap:8px}
+.actions a{background:rgba(6,26,41,.95);border:1px solid rgba(67,200,209,.48);box-shadow:0 7px 19px #0005;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#ecfcfd}
+.actions a:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #5ee4e9;outline-offset:3px}
+.panel,.card{background:var(--life-panel);border:1px solid rgba(67,200,209,.26);box-shadow:0 10px 24px #0003;color:#edf9fb;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.panel h2,.card a{color:#f2fcfc}
+.input{background:#061725;border-color:#276276;color:#fff}
+button{background:#3ab8bf;color:#021420}
+button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
+.small,.muted,.empty,footer{color:#b0cdd7}
+.pill{color:#94edeb;border-color:#348e98}
+@keyframes life-glow{from{opacity:.35;transform:translateY(0)}to{opacity:.83;transform:translateY(-8px)}}
+@media (max-width:390px){.hero{min-height:420px}.actions a{font-size:12px}.app{padding-inline:11px}}
+@media (min-width:720px){.hero{min-height:530px;background-position:center 58%}}
+@media (prefers-reduced-motion:reduce){.hero::before{animation:none}}
+
+
+.taskcheck{width:21px;height:21px;accent-color:#42bec6;flex:none;margin-top:1px;cursor:pointer}
+.taskcheck:disabled{opacity:.5;cursor:wait}
+.taskstatus{font-size:12px;margin-top:8px;color:#b9dae1}
+.taskstatus.error{color:#ffb4bc}
+.taskbody{flex:1;min-width:0}
+.taskcontrol{display:flex;gap:12px;align-items:flex-start}
+</style>
+</head>
+<body>
+<main class="app">
+<header class="hero">
+<div class="tag">CENTRUM DOWODZENIA</div>
+<h1>Twój dzień ✨</h1>
+<p>Jeden mały krok wystarczy, żeby zacząć.</p>
+</header>
+<nav class="actions" aria-label="Szybkie przejścia do Notion">
+<a href="https://www.notion.so/7940322d373e4b9a8b457c6808ae02e7" target="_blank" rel="noopener noreferrer"><span>➕</span>Zadanie</a>
+<a href="https://www.notion.so/69737c904ff845f58c9fd8f5099a0b3c" target="_blank" rel="noopener noreferrer"><span>💡</span>Pomysł</a>
+<a href="https://www.notion.so/b6cb68173b414bb88013848289d505ab" target="_blank" rel="noopener noreferrer"><span>🌱</span>Nawyk</a>
+</nav>
+
+<section id="login" class="panel">
+<h2>🔐 Dostęp do pulpitu</h2>
+<p class="small">Wprowadź klucz dostępu.</p>
+<form id="loginForm">
+<label for="apiKey" class="small">Klucz dostępu do pulpitu</label>
+<input id="apiKey" class="input" type="password" placeholder="Klucz dostępu" autocomplete="off" required>
+<button type="submit" id="connectButton">Połącz i pobierz dane</button>
+</form>
+<p id="loginStatus" class="status" role="status"></p>
+</section>
+
+<section id="connected" hidden>
+<div class="controls">
+<span id="syncStatus" class="small" role="status">Połączono</span>
+<button id="refresh" type="button" class="secondary">↻ Odśwież</button>
+<button id="logout" type="button" class="secondary">Rozłącz</button>
+</div>
+<h2>🎯 Teraz</h2>
+<div id="tasks"></div>
+<h2>☀️ Wykonania nawyków</h2>
+<div id="habits"></div>
+<h2>📥 Notatki</h2>
+<div id="notes"></div>
+<p id="moreInfo" class="muted"></p>
+</section>
+<footer>ADHD Life OS · Twój osobisty pulpit<br><small id="buildVersion">Wersja diagnostyczna 1.3.2</small></footer>
+</main>
+<script>
+(function () {
+  "use strict";
+  const API = "https://adhd-life-os-api.noommys.workers.dev/api/dashboard";
+  const STORAGE_KEY = "adhd-life-os.dashboard-key";
+  const TASK_UPDATE_API = API.replace(/\/api\/dashboard$/, "/api/tasks/");
+  let canEditTasks = false;
+  const $ = id => document.getElementById(id);
+  let key = "";
+  try { key = localStorage.getItem(STORAGE_KEY) || ""; } catch (_) {}
+
+  function setStatus(id, message, isError) {
+    const node = $(id);
+    node.textContent = message;
+    node.classList.toggle("error", !!isError);
+  }
+  function clear(node) { node.replaceChildren(); }
+  function line(target, text, className) {
+    const div = document.createElement("div");
+    if (className) div.className = className;
+    div.textContent = text;
+    target.appendChild(div);
+    return div;
+  }
+  function safeLink(url, title) {
+    const a = document.createElement("a");
+    a.textContent = title || "Bez tytułu";
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:" && (parsed.hostname === "notion.so" || parsed.hostname.endsWith(".notion.so") || parsed.hostname === "www.notion.so" || parsed.hostname === "app.notion.com")) {
+        a.href = parsed.href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      }
+    } catch (_) {}
+    return a;
+  }
+  function card(container, item, kind, extra) {
+    const el = document.createElement("article");
+    el.className = "card " + kind;
+    const head = document.createElement("div");
+    head.className = "itemrow";
+    const strong = document.createElement("strong");
+    strong.appendChild(safeLink(item.url, item.title));
+    head.appendChild(strong);
+    if (extra) {
+      const pill = document.createElement("span");
+      pill.className = "pill";
+      pill.textContent = extra;
+      head.appendChild(pill);
+    }
+    el.appendChild(head);
+    container.appendChild(el);
+    return el;
+  }
+  const items = section => Array.isArray(section?.items) ? section.items : [];
+
+
+  function pageId(item) {
+    if (typeof item.id === "string" && /^[0-9a-f-]{32,36}$/i.test(item.id)) return item.id.replace(/-/g, "");
+    try {
+      const path = new URL(item.url).pathname;
+      const found = path.split("/").filter(Boolean).pop()?.match(/([a-f0-9]{32})$/i);
+      return found ? found[1] : "";
+    } catch (_) { return ""; }
+  }
+  async function markTaskDone(task, checkbox, message) {
+    const id = pageId(task);
+    if (!id || !key) return;
+    checkbox.disabled = true;
+    message.textContent = "Zapisywanie w Notion…";
+    try {
+      const response = await fetch(TASK_UPDATE_API + id, {
+        method: "PATCH",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Zrobione" }),
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("Zapis nie powiódł się");
+      message.textContent = "Zapisano ✓";
+      await load(key);
+    } catch (_) {
+      checkbox.checked = false;
+      message.textContent = "Nie zapisano zmiany. Spróbuj ponownie.";
+      message.classList.add("error");
+    } finally { checkbox.disabled = false; }
+  }
+  function showData(data) {
+    canEditTasks = data.capabilities?.taskStatusWrite === true;
+    const taskHolder = $("tasks"), habitHolder = $("habits"), noteHolder = $("notes");
+    [taskHolder, habitHolder, noteHolder].forEach(clear);
+    const tasks = items(data.tasks).filter(x => x.status !== "Zrobione" && x.status !== "Porzucone");
+    const rank = p => p === "P1" ? 0 : p === "P2" ? 1 : p === "P3" ? 2 : 3;
+    tasks.sort((a,b) => rank(a.priority)-rank(b.priority) || (a.due || "9999").localeCompare(b.due || "9999"));
+    if (!tasks.length) line(taskHolder, "Brak otwartych zadań w pobranych rekordach.", "card empty");
+    tasks.slice(0,8).forEach(task => {
+      const el = card(taskHolder, task, "", task.priority || "");
+      if (canEditTasks && pageId(task)) {
+        const original = el.querySelector(".itemrow");
+        const body = document.createElement("div");
+        body.className = "taskbody";
+        original.replaceWith(body);
+        body.appendChild(original);
+        const control = document.createElement("div");
+        control.className = "taskcontrol";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "taskcheck";
+        checkbox.setAttribute("aria-label", "Oznacz jako zrobione: " + task.title);
+        const status = document.createElement("div");
+        status.className = "taskstatus";
+        checkbox.addEventListener("change", () => { if (checkbox.checked) markTaskDone(task, checkbox, status); });
+        control.append(checkbox, body);
+        el.prepend(control);
+        el.appendChild(status);
+      }
+      const detail = [task.status, task.due ? "Termin: " + task.due.slice(0,10) : "", task.nextStep ? "Następny krok: " + task.nextStep : ""].filter(Boolean).join(" · ");
+      if (detail) line(el, detail, "muted");
+    });
+
+    const habits = items(data.habits).sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+    if (!habits.length) line(habitHolder, "Brak zapisanych wykonań nawyków.", "card empty");
+    habits.slice(0,6).forEach(habit => {
+      const el = card(habitHolder, habit, "habit", habit.done ? "✓ Wykonane" : "Niewykonane");
+      line(el, [habit.date ? habit.date.slice(0,10) : "", habit.minimal ? "Wersja minimalna" : ""].filter(Boolean).join(" · "), "muted");
+    });
+
+    const notes = items(data.notes).filter(x => x.status !== "Zarchiwizowane");
+    if (!notes.length) line(noteHolder, "Brak niezarchiwizowanych notatek w pobranych rekordach.", "card empty");
+    notes.slice(0,6).forEach(note => {
+      const el = card(noteHolder, note, "inbox", note.status || "");
+    });
+    const capped = ["tasks","habits","notes"].filter(n => data[n]?.hasMore);
+    $("moreInfo").textContent = capped.length
+      ? "Dostępna jest tylko część wpisów. Otwórz pełne listy w widoku źródłowym."
+      : (canEditTasks ? "Zadania możesz odhaczać w aplikacji; pozostałe dane otwórz w Notion." : "Dane są tylko do odczytu. Dotknij pozycji, aby zobaczyć szczegóły.");
+    $("login").hidden = true;
+    $("connected").hidden = false;
+    setStatus("syncStatus", "Zaktualizowano: " + new Date().toLocaleTimeString("pl-PL"), false);
+  }
+
+  async function load(inputKey) {
+    if (!/^[\x21-\x7E]{1,256}$/.test(inputKey)) {
+      $("connected").hidden = true;
+      $("login").hidden = false;
+      setStatus("loginStatus", "Nie można użyć tego klucza.", true);
+      try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+      return;
+    }
+    $("connectButton").disabled = true;
+    $("refresh").disabled = true;
+    setStatus($("connected").hidden ? "loginStatus" : "syncStatus", "Pobieranie danych…", false);
+    let stage = "Połączenie z Workerem";
+    try {
+      const response = await fetch(API, {
+        method: "GET",
+        headers: { "Authorization": "Bearer " + inputKey },
+        cache: "no-store"
+      });
+      if (response.status === 401) throw new Error("Klucz odrzucony (401).");
+      if (!response.ok) throw new Error("Worker zwrócił HTTP " + response.status + ".");
+      stage = "Odczyt odpowiedzi Workera";
+      const data = await response.json();
+      if (!data.ok || !data.tasks || !data.habits || !data.notes) throw new Error("Nie udało się pobrać danych. Spróbuj ponownie później.");
+      stage = "Wyświetlanie list";
+      showData(data);
+      key = inputKey;
+      try { localStorage.setItem(STORAGE_KEY, key); } catch (_) {}
+      $("apiKey").value = "";
+    } catch (error) {
+      console.error("Life OS dashboard:", stage, error);
+      $("connected").hidden = true;
+      $("login").hidden = false;
+      const reason = error?.message || "Nieznany błąd";
+      const safeReason = /^(Klucz odrzucony|Worker zwrócił HTTP|Nie udało się pobrać danych)/.test(reason) ? reason : "Wystąpił błąd aplikacji — szczegóły w konsoli.";
+      setStatus("loginStatus", stage + ": " + safeReason + " [1.3.2]", true);
+    } finally {
+      $("connectButton").disabled = false;
+      $("refresh").disabled = false;
+    }
+  }
+
+  $("loginForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const typed = $("apiKey").value.trim();
+    if (typed) load(typed);
+  });
+  $("refresh").addEventListener("click", () => load(key));
+  $("logout").addEventListener("click", () => {
+    key = "";
+    try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+    $("connected").hidden = true;
+    $("login").hidden = false;
+    ["tasks","habits","notes"].forEach(id => clear($(id)));
+    $("apiKey").value = "";
+    setStatus("loginStatus", "Rozłączono. Klucz usunięto z pamięci aplikacji.", false);
+  });
+  if (key) load(key);
+})();
+</script>
+</body>
+</html>
