@@ -216,7 +216,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   </form>
   <div id="hydroFeedback" class="hydro-feedback" role="status"></div>
   <div id="hydroHistory" class="hydro-history" hidden></div>
-  <div id="hydroStorageNote" class="muted">Porcje, cel i historia są synchronizowane z Notion przez Cloudflare Worker.</div>
+  <div id="hydroStorageNote" class="muted">Porcje liczone są na tym urządzeniu. Notion otrzymuje jeden wynik dnia: „Wykonany” albo „Niewykonany”.</div>
 </section>
 <section class="widget widget-rituals" data-screen="habits" aria-labelledby="ritualsTitle"><div class="widget-heading"><span class="widget-kicker">03 · DOBRE NAWYKI</span><h2 id="ritualsTitle">☀️ Dzisiejsze rytuały</h2></div><div id="habits" class="widget-content"></div></section>
 <section class="widget widget-deadline" data-screen="home" aria-labelledby="deadlineTitle"><div class="widget-heading"><span class="widget-kicker">04 · NA HORYZONCIE</span><h2 id="deadlineTitle">📅 Najbliższy termin</h2></div><div id="deadline" class="widget-content"></div></section>
@@ -458,270 +458,285 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     setStatus("loginStatus", "Rozłączono. Klucz usunięto z pamięci aplikacji.", false);
   });
 
-  /* HydroTank: all confirmed writes go through Cloudflare Worker -> Notion.
-     Legacy localStorage entries remain untouched and are never silently imported. */
+  /* HydroTank daily-outcome model.
+     Portion clicks update a local journal, never Notion.
+     A single daily summary is sent on completion or after the day ends. */
+  const WATER_JOURNAL_KEY = "adhd-life-os.water.daily.v2";
+  const waterDate = () => new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Warsaw", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date());
   const waterNumber = n => new Intl.NumberFormat("pl-PL").format(n);
   const waterButtons = Array.from(document.querySelectorAll("[data-water-amount]"));
-  let waterState = null;
-  let waterBusy = false;
-  let waterReady = false;
-  let waterGeneration = 0;
+  let waterRemote = null, waterBusy = false, waterReady = false;
+  let waterGeneration = 0, waterJournal = {days:{}};
+  let waterStoreFailed = false, waterVersionSupported = false;
 
-  function waterMessage(message, isError = false) {
-    setStatus("hydroFeedback", message, isError);
-  }
-
-  function resetWater() {
-    waterGeneration++;
-    waterBusy = false;
-    waterReady = false;
-    waterState = null;
-    waterMessage("Połącz aplikację, aby pobrać nawodnienie z Notion.");
-    renderWater();
-  }
-
-  function validateWaterState(data) {
-    if (!data || data.ok !== true || !Number.isSafeInteger(data.goal) ||
-        data.goal < 250 || data.goal > 10000 ||
-        !Number.isSafeInteger(data.consumed) || data.consumed < 0 ||
-        !Array.isArray(data.presets) || data.presets.length !== 3 ||
-        data.presets.some(n => !Number.isSafeInteger(n) || n < 1 || n > 2000) ||
-        !Array.isArray(data.entries) || !Array.isArray(data.history)) {
-      throw Error("Nieprawidłowy format danych HydroTank.");
-    }
-    return {
-      date: String(data.date || ""),
-      goal: data.goal,
-      consumed: data.consumed,
-      presets: data.presets,
-      entries: data.entries.filter(e => e && typeof e.id === "string" && Number.isSafeInteger(e.ml) && e.ml > 0),
-      history: data.history.filter(day => day && typeof day.date === "string" && Number.isSafeInteger(day.ml) && day.ml >= 0)
-    };
-  }
-
-  async function waterRequest(method = "GET", suffix = "", body) {
-    if (!key || $("connected").hidden) throw Error("Najpierw połącz aplikację.");
-    const headers = { "Authorization": "Bearer " + key };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
-    const response = await fetch(WATER_API + suffix, {
-      method,
-      headers,
-      cache: "no-store",
-      ...(body === undefined ? {} : { body: JSON.stringify(body) })
-    });
-    if (response.status === 401) throw Error("Odmowa dostępu (401). Połącz aplikację ponownie.");
-    if (response.status === 403) throw Error("Brak uprawnień do danych HydroTank (403).");
-    if (!response.ok) throw Error("Worker zwrócił HTTP " + response.status + " dla HydroTank.");
-    const data = await response.json();
-    if (!data || data.ok !== true) throw Error("Worker nie potwierdził operacji.");
-    return data;
-  }
-
-  function renderWater() {
-    const data = waterState;
-    const goal = data?.goal || 0, drank = data?.consumed || 0;
-    const remaining = Math.max(0, goal - drank);
-    const restPercent = goal ? remaining / goal : 0;
-    const progress = goal ? Math.min(1, drank / goal) : 0;
-    $("hydroRemaining").textContent = data ? waterNumber(remaining) + " ml" : "—";
-    $("hydroConsumed").textContent = data ? "Wypite: " + waterNumber(drank) + " / " + waterNumber(goal) + " ml" : "Oczekiwanie na dane z Notion";
-    $("hydroBottlePercent").textContent = data ? Math.round(restPercent * 100) + "%" : "—";
-    const fillHeight = 167 * restPercent;
-    $("hydroWater").setAttribute("y", String(232 - fillHeight));
-    $("hydroWater").setAttribute("height", String(fillHeight));
-    const circumference = 2 * Math.PI * 99;
-    $("hydroRing").style.strokeDasharray = String(circumference);
-    $("hydroRing").style.setProperty("--ring-offset", String(circumference * (1 - progress)));
-    $("hydroDayStatus").textContent = !data ? "Połączono? Synchronizuj dane." :
-      remaining === 0 ? (drank > goal ? "✓ Cel osiągnięty · +" + waterNumber(drank - goal) + " ml ponad plan" : "✓ Cel osiągnięty!") :
-      (drank ? "Każda porcja przybliża Cię do celu." : "Pierwsza porcja czeka 💧");
-    $("hydroDayStatus").classList.toggle("hydro-celebrate", !!data && remaining === 0);
-    const active = !!key && !$("connected").hidden && waterReady && !waterBusy;
-    waterButtons.forEach((button, index) => {
-      const amount = data?.presets[index] || [150, 250, 500][index];
-      button.dataset.waterAmount = String(amount);
-      button.textContent = "+" + waterNumber(amount) + " ml";
-      button.disabled = !active;
-    });
-    $("hydroUndo").disabled = !active || !data.entries.length;
-    $("hydroRefresh").disabled = !key || $("connected").hidden || waterBusy;
-    $("hydroGoalToggle").disabled = !active;
-    $("hydroHistoryToggle").disabled = !data;
-    $("hydroGoalForm").querySelector('button[type="submit"]').disabled = !active;
-    if (data && $("hydroGoalForm").hidden) $("hydroGoalInput").value = String(data.goal);
-    renderWaterHistory();
-  }
-
-  function renderWaterHistory() {
-    const box = $("hydroHistory");
-    box.replaceChildren();
-    const heading = document.createElement("strong");
-    heading.textContent = "Ostatnie 7 dni";
-    box.appendChild(heading);
-    if (!waterState) {
-      const p = document.createElement("div");
-      p.textContent = "Brak pobranej historii.";
-      box.appendChild(p);
-      return;
-    }
-    const list = document.createElement("ol");
-    for (const day of waterState.history) {
-      const li = document.createElement("li");
-      li.textContent = day.date + " · " + waterNumber(day.ml) + " ml";
-      list.appendChild(li);
-    }
-    box.appendChild(list);
-  }
-
-  async function refreshWater() {
-    if (!key || $("connected").hidden || waterBusy) return;
-    const generation = ++waterGeneration;
-    waterBusy = true;
-    waterReady = false;
-    renderWater();
-    waterMessage("Synchronizuję z Notion…");
-    try {
-      const data = await waterRequest();
-      if (generation !== waterGeneration) return;
-      waterState = validateWaterState(data);
-      waterReady = true;
-      waterMessage("Dane z Notion aktualne · " + new Date().toLocaleTimeString("pl-PL"));
-    } catch (error) {
-      if (generation !== waterGeneration) return;
-      console.error("HydroTank read:", error);
-      waterMessage("Nie udało się pobrać nawodnienia: " + error.message, true);
-    } finally {
-      if (generation === waterGeneration) {
-        waterBusy = false;
-        renderWater();
-      }
-    }
-  }
-
-  function applyConfirmedWater(operation, result) {
-    if (!waterState) return;
-    if (operation.kind === "add" && result.entry && result.entry.status === "Aktywny") {
-      if (!waterState.entries.some(entry => entry.id === result.entry.id)) {
-        waterState.entries.unshift(result.entry);
-        waterState.consumed += result.entry.ml;
-      }
-    } else if (operation.kind === "undo" && result.entry) {
-      const previous = waterState.entries.find(entry => entry.id === result.entry.id);
-      if (previous) {
-        waterState.consumed = Math.max(0, waterState.consumed - previous.ml);
-        waterState.entries = waterState.entries.filter(entry => entry.id !== result.entry.id);
-      }
-    } else if (operation.kind === "goal" && Number.isSafeInteger(result.goal)) {
-      waterState.goal = result.goal;
-    }
-    // GET immediately after the write supplies the canonical history and totals.
-    const today = waterState.history.find(row => row.date === waterState.date);
-    if (today) today.ml = waterState.consumed;
-  }
-
-  async function writeWater(operation) {
-    if (!waterReady || waterBusy || !key || $("connected").hidden) return;
-    const generation = ++waterGeneration;
-    waterBusy = true;
-    renderWater();
-    waterMessage("Zapisuję w Notion…");
-    let confirmed = false;
-    try {
-      const result = await waterRequest(operation.method, operation.suffix, operation.body);
-      if (generation !== waterGeneration) return;
-      confirmed = true;
-      applyConfirmedWater(operation, result);
-      if (operation.kind === "goal") {
-        $("hydroGoalForm").hidden = true;
-        $("hydroGoalToggle").setAttribute("aria-expanded", "false");
-      }
-      try {
-        const data = await waterRequest();
-        if (generation !== waterGeneration) return;
-        waterState = validateWaterState(data);
-        waterReady = true;
-        waterMessage(operation.message + " · zapisano w Notion");
-      } catch (error) {
-        if (generation !== waterGeneration) return;
-        console.error("HydroTank post-write refresh:", error);
-        waterReady = false;
-        waterMessage("Zapis w Notion potwierdzony, ale odświeżenie się nie udało. Kliknij Synchronizuj.", true);
-      }
-    } catch (error) {
-      if (generation !== waterGeneration) return;
-      console.error("HydroTank write:", error);
-      waterReady = false;
-      waterMessage(confirmed ? "Zapis potwierdzony. Kliknij Synchronizuj." :
-        "Nie można potwierdzić zapisu: " + error.message + " Sprawdź historię przed ponowieniem.", true);
-    } finally {
-      if (generation === waterGeneration) {
-        waterBusy = false;
-        renderWater();
-      }
-    }
-  }
-
-  function waterOperationId() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID().replace(/-/g, "");
-    }
-    return "water_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
-  }
-
-  waterButtons.forEach(button => button.addEventListener("click", () => {
-    const ml = Number(button.dataset.waterAmount);
-    if (!waterState || !waterState.presets.includes(ml)) return;
-    writeWater({
-      kind: "add", method: "POST", suffix: "",
-      body: { ml, operationId: waterOperationId() },
-      message: "Dodano " + waterNumber(ml) + " ml"
-    });
-  }));
-
-  $("hydroUndo").addEventListener("click", () => {
-    const entry = waterState?.entries[0];
-    if (!entry || !/^[a-f0-9-]{32,36}$/i.test(entry.id)) return;
-    writeWater({
-      kind: "undo", method: "PATCH", suffix: "/" + entry.id,
-      body: { status: "Cofnięty" },
-      message: "Cofnięto " + waterNumber(entry.ml) + " ml"
-    });
-  });
-
-  $("hydroRefresh").addEventListener("click", refreshWater);
-  $("hydroGoalToggle").addEventListener("click", () => {
-    $("hydroGoalForm").hidden = !$("hydroGoalForm").hidden;
-    $("hydroGoalToggle").setAttribute("aria-expanded", String(!$("hydroGoalForm").hidden));
-    if (!$("hydroGoalForm").hidden && waterState) $("hydroGoalInput").value = String(waterState.goal);
-  });
-  $("hydroHistoryToggle").addEventListener("click", () => {
-    $("hydroHistory").hidden = !$("hydroHistory").hidden;
-    $("hydroHistoryToggle").setAttribute("aria-expanded", String(!$("hydroHistory").hidden));
-  });
-  $("hydroGoalForm").addEventListener("submit", event => {
-    event.preventDefault();
-    const goal = Number($("hydroGoalInput").value);
-    if (!Number.isSafeInteger(goal) || goal < 250 || goal > 10000 || goal % 50 !== 0) {
-      waterMessage("Cel musi mieścić się w zakresie 250–10000 ml (co 50 ml).", true);
-      return;
-    }
-    writeWater({
-      kind: "goal", method: "PATCH", suffix: "/goal",
-      body: { goal }, message: "Zmieniono cel na " + waterNumber(goal) + " ml"
-    });
-  });
   try {
-    const legacy = JSON.parse(localStorage.getItem("adhd-life-os.hydrotank.v1") || "null");
-    if (Array.isArray(legacy?.entries) && legacy.entries.length) {
-      $("hydroStorageNote").textContent = "Nowe wpisy są zapisywane w Notion. Starsze wpisy lokalne pozostają na tym urządzeniu i nie zostały automatycznie przeniesione.";
+    const saved = JSON.parse(localStorage.getItem(WATER_JOURNAL_KEY) || "null");
+    if (saved && saved.days && typeof saved.days === "object" && !Array.isArray(saved.days)) {
+      for (const [date, row] of Object.entries(saved.days)) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date) && row &&
+            Number.isSafeInteger(row.ml) && row.ml >= 0 && row.ml <= 100000 &&
+            Number.isSafeInteger(row.goal) && row.goal >= 250 && row.goal <= 10000) {
+          waterJournal.days[date] = {
+            ml:row.ml, goal:row.goal,
+            steps:Array.isArray(row.steps) ? row.steps.filter(x=>[150,250,500].includes(x)||Number.isSafeInteger(x)&&x>0&&x<=2000).slice(-300) : [],
+            syncedStatus:["Wykonany","Niewykonany"].includes(row.syncedStatus) ? row.syncedStatus : null,
+            reversed:row.reversed===true
+          };
+        }
+      }
     }
   } catch (_) {}
-  resetWater();
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && document.body.dataset.activeScreen === "habits") refreshWater();
+  function saveWaterJournal() {
+    try { localStorage.setItem(WATER_JOURNAL_KEY, JSON.stringify(waterJournal)); waterStoreFailed=false; return true; }
+    catch (_) { waterStoreFailed=true; return false; }
+  }
+  function waterNote(text, error=false) { setStatus("hydroFeedback",text,error); }
+  function liveDay() { return waterJournal.days[waterDate()] || null; }
+  function ensureWaterDay(date=waterDate()) {
+    if (!waterJournal.days[date]) {
+      waterJournal.days[date] = {
+        ml: date === waterRemote?.date ? waterRemote.consumed : 0,
+        goal: waterRemote?.goal || 2000,
+        steps: [], syncedStatus:date===waterRemote?.date?waterRemote.dayStatus:null,
+        reversed:false
+      };
+      saveWaterJournal();
+    }
+    return waterJournal.days[date];
+  }
+  function waterButtonState() {
+    // Daily clicks are available as soon as the dashboard has loaded.
+    return !!key && !$("connected").hidden && waterReady && !waterBusy;
+  }
+  function renderWater() {
+    const row=liveDay(), goal=row?.goal || waterRemote?.goal || 2000;
+    const ml=row?.ml ?? waterRemote?.consumed ?? 0;
+    const remaining=Math.max(0,goal-ml), fraction=remaining/goal;
+    const circumference=2*Math.PI*99;
+    $("hydroRemaining").textContent=waterReady?waterNumber(remaining)+" ml":"—";
+    $("hydroConsumed").textContent=waterReady?"Wypite: "+waterNumber(ml)+" / "+waterNumber(goal)+" ml":"Oczekiwanie na dane";
+    $("hydroBottlePercent").textContent=waterReady?Math.round(fraction*100)+"%":"—";
+    $("hydroWater").setAttribute("y",String(232-167*fraction));
+    $("hydroWater").setAttribute("height",String(167*fraction));
+    $("hydroRing").style.strokeDasharray=String(circumference);
+    $("hydroRing").style.setProperty("--ring-offset",String(circumference*(fraction)));
+    $("hydroDayStatus").textContent=!waterReady?"Połącz aplikację, aby pobrać cel.":
+      remaining===0?"✓ Dzisiejszy cel osiągnięty":(ml?"Postęp zapisany na tym urządzeniu.":"Pierwsza porcja czeka 💧");
+    $("hydroDayStatus").classList.toggle("hydro-celebrate",waterReady&&remaining===0);
+    const active=waterButtonState();
+    waterButtons.forEach((button,i)=>{
+      const amount=waterRemote?.presets?.[i] || [150,250,500][i];
+      button.dataset.waterAmount=String(amount);
+      button.textContent="+"+waterNumber(amount)+" ml";
+      button.disabled=!active;
+    });
+    $("hydroUndo").disabled=!active||!(row?.steps?.length);
+    $("hydroRefresh").disabled=!key||$("connected").hidden||waterBusy;
+    $("hydroGoalToggle").disabled=!active;
+    $("hydroHistoryToggle").disabled=!waterRemote;
+    $("hydroGoalForm").querySelector('button[type="submit"]').disabled=!active;
+    if ($("hydroGoalForm").hidden) $("hydroGoalInput").value=String(goal);
+    renderWaterHistory();
+  }
+  function renderWaterHistory() {
+    const box=$("hydroHistory");
+    box.replaceChildren();
+    const title=document.createElement("strong");
+    title.textContent="Ostatnie 7 dni · wynik planu";box.appendChild(title);
+    if (!waterRemote) {
+      const info=document.createElement("div");info.textContent="Jeszcze nie pobrano historii.";box.appendChild(info);return;
+    }
+    const ul=document.createElement("ol");
+    for (const day of waterRemote.history) {
+      const local=waterJournal.days[day.date];
+      const dateIsCurrent=day.date===waterDate();
+      const ml=local?local.ml:day.ml;
+      const status=local?.syncedStatus||day.status||(dateIsCurrent?"W trakcie":"Brak rozliczenia");
+      const li=document.createElement("li");
+      li.textContent=day.date+" · "+waterNumber(ml)+" ml · "+status;
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+  }
+  function waterResponse(data) {
+    if (!data || data.ok!==true || !Number.isSafeInteger(data.goal) ||
+        data.goal<250 || data.goal>10000 ||
+        !Number.isSafeInteger(data.consumed) || data.consumed<0 ||
+        !Array.isArray(data.presets) || data.presets.length!==3 ||
+        data.presets.some(x=>!Number.isSafeInteger(x)||x<1||x>2000) ||
+        !Array.isArray(data.history)) throw Error("Nieprawidłowe dane z Workera.");
+    return {date:String(data.date||""),goal:data.goal,consumed:data.consumed,
+      dayStatus:data.dayStatus||null,presets:data.presets,history:data.history,
+      writeMode:data.writeMode||"legacy"};
+  }
+  async function waterRequest(method="GET",suffix="",body) {
+    if (!key || $("connected").hidden) throw Error("Najpierw połącz aplikację.");
+    const headers={Authorization:"Bearer "+key};
+    if (body!==undefined) headers["Content-Type"]="application/json";
+    const response=await fetch(WATER_API+suffix,{method,headers,cache:"no-store",
+      ...(body===undefined?{}:{body:JSON.stringify(body)})});
+    if(response.status===401)throw Error("Niepoprawny klucz (401).");
+    if(!response.ok)throw Error("Worker HTTP "+response.status+".");
+    const data=await response.json();
+    if(!data?.ok)throw Error("Worker nie potwierdził operacji.");
+    return data;
+  }
+  function mergeWaterRemote(remote) {
+    waterRemote=waterResponse(remote);
+    waterVersionSupported=waterRemote.writeMode==="daily";
+    const row=ensureWaterDay(waterRemote.date);
+    if (waterRemote.dayStatus==="Wykonany" && row.ml<waterRemote.consumed && !row.reversed) {
+      row.ml=waterRemote.consumed;row.steps=[];
+    }
+    if (waterRemote.dayStatus && !row.reversed) row.syncedStatus=waterRemote.dayStatus;
+    if (row.steps.length===0 && row.ml===0 && !row.syncedStatus && waterRemote.consumed>0) {
+      // Preserve previously written v1.4 portions once without duplicating them.
+      row.ml=waterRemote.consumed;
+    }
+    saveWaterJournal();
+    waterReady=true;
+  }
+  function waterPendingDays() {
+    const today=waterDate();
+    return Object.entries(waterJournal.days)
+      .filter(([date,row])=>date<=today&&date>=dayBefore(today,90)&&
+        (date<today||row.ml>=row.goal||(row.reversed&&row.syncedStatus==="Wykonany")))
+      .map(([date,row])=>({date,row,status:row.ml>=row.goal?"Wykonany":"Niewykonany"}))
+      .filter(x=>x.row.syncedStatus!==x.status)
+      .sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  function dayBefore(day,days) {
+    const date=new Date(day+"T12:00:00Z");
+    date.setUTCDate(date.getUTCDate()-days);
+    return date.toISOString().slice(0,10);
+  }
+  async function syncWaterDays() {
+    if (waterBusy||!key||$("connected").hidden||!waterReady) return;
+    if (!waterVersionSupported) {
+      waterNote("Nowe podsumowania wymagają wdrożenia Cloudflare Worker v1.5. Postęp jest zapisany lokalnie.",true);
+      return;
+    }
+    const pending=waterPendingDays();
+    if (!pending.length) return;
+    const generation=++waterGeneration;
+    waterBusy=true;renderWater();
+    let count=0;
+    try {
+      for(const item of pending) {
+        const result=await waterRequest("POST","/day",{
+          date:item.date,goal:item.row.goal,ml:item.row.ml,status:item.status
+        });
+        if (generation!==waterGeneration) return;
+        item.row.syncedStatus=result.status;
+        item.row.reversed=false;
+        saveWaterJournal();count++;
+      }
+      const result=await waterRequest();
+      if(generation!==waterGeneration)return;
+      mergeWaterRemote(result);
+      waterNote("Wynik dnia zsynchronizowany z Notion · "+count+" wpis(y).");
+    } catch(error) {
+      if(generation!==waterGeneration)return;
+      console.error("HydroTank daily summary:",error);
+      waterNote("Wynik czeka na synchronizację. "+error.message,true);
+    } finally {
+      if(generation===waterGeneration){waterBusy=false;renderWater();}
+    }
+  }
+  async function refreshWater() {
+    if (!key||$("connected").hidden||waterBusy)return;
+    const generation=++waterGeneration;waterBusy=true;waterReady=false;
+    renderWater();waterNote("Pobieram konfigurację i historię…");
+    try {
+      const remote=await waterRequest();
+      if(generation!==waterGeneration)return;
+      mergeWaterRemote(remote);
+      waterNote(waterVersionSupported?"Połączono · porcje zapisują się lokalnie do rozliczenia dnia.":
+        "Worker v1.4: postęp lokalny. Wdróż v1.5, aby zapisywać wyniki dni.",!waterVersionSupported);
+    } catch(error) {
+      if(generation!==waterGeneration)return;
+      console.error("HydroTank read:",error);
+      waterNote("Nie udało się pobrać ustawień: "+error.message,true);
+    } finally {
+      if(generation===waterGeneration){waterBusy=false;renderWater();}
+    }
+    if(waterReady) await syncWaterDays();
+  }
+  function waterAction(delta) {
+    if (!waterButtonState())return;
+    const row=ensureWaterDay();
+    if(delta>0) {
+      row.ml+=delta;row.steps.push(delta);
+      if(row.steps.length>300)row.steps.shift();
+    } else {
+      const last=row.steps.pop();
+      if(!last)return;
+      row.ml=Math.max(0,row.ml-last);
+      if(row.syncedStatus==="Wykonany"&&row.ml<row.goal)row.reversed=true;
+    }
+    const persisted=saveWaterJournal();
+    if(!persisted) {
+      waterNote("Brak dostępu do pamięci przeglądarki. Nie zamykaj karty przed synchronizacją.",true);
+    } else {
+      waterNote(row.ml>=row.goal?"Cel osiągnięty! Zapisuję wynik w Notion…":
+        "Zapisano lokalnie. Notion otrzyma wynik po rozliczeniu celu.");
+    }
+    renderWater();
+    if(row.ml>=row.goal||(row.reversed&&row.syncedStatus==="Wykonany"))syncWaterDays();
+  }
+  waterButtons.forEach(button=>button.addEventListener("click",()=>{
+    const ml=Number(button.dataset.waterAmount);
+    if(!waterRemote?.presets.includes(ml))return;
+    waterAction(ml);
+  }));
+  $("hydroUndo").addEventListener("click",()=>waterAction(-1));
+  $("hydroRefresh").addEventListener("click",refreshWater);
+  $("hydroGoalToggle").addEventListener("click",()=>{
+    $("hydroGoalForm").hidden=!$("hydroGoalForm").hidden;
+    $("hydroGoalToggle").setAttribute("aria-expanded",String(!$("hydroGoalForm").hidden));
   });
-  navItems.forEach(item => item.addEventListener("click", () => {
-    if (item.dataset.target === "habits") refreshWater();
+  $("hydroHistoryToggle").addEventListener("click",()=>{
+    $("hydroHistory").hidden=!$("hydroHistory").hidden;
+    $("hydroHistoryToggle").setAttribute("aria-expanded",String(!$("hydroHistory").hidden));
+  });
+  $("hydroGoalForm").addEventListener("submit",async event=>{
+    event.preventDefault();
+    if(!waterButtonState())return;
+    const goal=Number($("hydroGoalInput").value);
+    if(!Number.isSafeInteger(goal)||goal<250||goal>10000||goal%50!==0){
+      waterNote("Cel musi mieścić się w zakresie 250–10000 ml (co 50 ml).",true);return;
+    }
+    const generation=++waterGeneration;waterBusy=true;renderWater();
+    try {
+      await waterRequest("PATCH","/goal",{goal});
+      if(generation!==waterGeneration)return;
+      waterRemote.goal=goal;
+      ensureWaterDay().goal=goal;
+      saveWaterJournal();
+      $("hydroGoalForm").hidden=true;
+      $("hydroGoalToggle").setAttribute("aria-expanded","false");
+      waterNote("Zmieniono cel i zapisano w Notion.");
+    } catch(error) {
+      waterNote("Zmiana celu nie została potwierdzona: "+error.message,true);
+    } finally {
+      if(generation===waterGeneration){waterBusy=false;renderWater();}
+    }
+    if(waterReady) syncWaterDays();
+  });
+  function resetWater() {
+    waterGeneration++;waterBusy=false;waterReady=false;
+    waterRemote=null;waterVersionSupported=false;
+    waterNote("Połącz aplikację, aby pobrać HydroTank.");
+    renderWater();
+  }
+  resetWater();
+  document.addEventListener("visibilitychange",()=>{
+    if(!document.hidden && document.body.dataset.activeScreen==="habits")refreshWater();
+  });
+  navItems.forEach(item=>item.addEventListener("click",()=>{
+    if(item.dataset.target==="habits")refreshWater();
   }));
   if (key) load(key);
 })();
