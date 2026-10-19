@@ -33,6 +33,33 @@ button:disabled{opacity:.6;cursor:default}.secondary{background:#2b3555;color:#e
 .itemrow{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
 footer{text-align:center;color:#aab3cc;font-size:11px;margin-top:28px}
 [hidden]{display:none!important}
+
+/* Life OS visual v2: tropical neon bay — standalone image asset. */
+:root{--life-bg:#04111d;--life-panel:rgba(5,20,33,.85);--life-cyan:#29c5ce;--life-coral:#fc806d}
+body{background:radial-gradient(circle at 50% 5%,#0b3542 0%,#061723 46%,#030b13 100%);color:#e7f6f8}
+.app{max-width:600px;padding:16px 14px calc(40px + env(safe-area-inset-bottom))}
+.hero{position:relative;min-height:480px;border-radius:20px;overflow:hidden;isolation:isolate;display:flex;flex-direction:column;justify-content:flex-start;padding:32px 21px;background-color:#092030;background-image:linear-gradient(180deg,rgba(1,12,24,.33) 0%,rgba(1,12,24,.12) 46%,rgba(1,12,24,.16) 69%,rgba(1,12,24,.8) 100%),url("./assets/life-os-bay.png");background-size:cover;background-position:center 57%;border:1px solid rgba(57,184,204,.32);box-shadow:0 15px 36px #0008}
+.hero::before{content:"";position:absolute;inset:-8% -10%;pointer-events:none;z-index:0;background:radial-gradient(circle at 70% 62%,rgba(242,118,86,.2),transparent 34%);animation:life-glow 10s ease-in-out infinite alternate}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(180deg,rgba(0,10,21,.43),transparent 35%,transparent 72%,rgba(0,9,20,.46))}
+.hero>*{position:relative;z-index:1}
+.hero h1{font-size:clamp(30px,8vw,42px);color:#f3faf9;text-shadow:0 2px 14px #04111d}
+.hero p{max-width:265px;color:#dbf4f3;text-shadow:0 1px 8px #03121c}
+.hero .tag{color:#7fe7e7;letter-spacing:.14em;font-weight:750}
+.actions{position:relative;z-index:2;margin-top:-30px;gap:8px}
+.actions a{background:rgba(6,26,41,.95);border:1px solid rgba(67,200,209,.48);box-shadow:0 7px 19px #0005;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#ecfcfd}
+.actions a:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid #5ee4e9;outline-offset:3px}
+.panel,.card{background:var(--life-panel);border:1px solid rgba(67,200,209,.26);box-shadow:0 10px 24px #0003;color:#edf9fb;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.panel h2,.card a{color:#f2fcfc}
+.input{background:#061725;border-color:#276276;color:#fff}
+button{background:#3ab8bf;color:#021420}
+button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
+.small,.muted,.empty,footer{color:#b0cdd7}
+.pill{color:#94edeb;border-color:#348e98}
+@keyframes life-glow{from{opacity:.35;transform:translateY(0)}to{opacity:.83;transform:translateY(-8px)}}
+@media (max-width:390px){.hero{min-height:420px}.actions a{font-size:12px}.app{padding-inline:11px}}
+@media (min-width:720px){.hero{min-height:530px;background-position:center 58%}}
+@media (prefers-reduced-motion:reduce){.hero::before{animation:none}}
+
 </style>
 </head>
 <body>
