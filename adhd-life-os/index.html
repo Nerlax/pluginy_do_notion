@@ -101,6 +101,17 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
 @media(min-width:800px){.bottom-nav{bottom:14px;border-bottom:1px solid rgba(63,175,187,.24);border-radius:19px}.app{padding-bottom:130px}}
 @media(prefers-reduced-motion:reduce){.bottom-nav .nav-item{transition:none}}
 
+/* Fast task capture — consistent with the Life OS mission widgets. */
+.quick-task-form{border:1px solid rgba(110,208,247,.25);background:rgba(4,21,37,.56);padding:12px;border-radius:16px;margin:0 0 17px}
+.quick-task-label{display:block;margin-bottom:8px;font-size:11px;letter-spacing:.05em;color:#b5e4ee;font-weight:750}
+.quick-task-row{display:flex;gap:9px;align-items:stretch}
+.quick-task-row .input{flex:1;min-width:0;margin:0;font-size:15px;padding:12px 13px}
+.quick-task-row button{flex:none;background:#63d8da;color:#041e2b;border-radius:11px;padding:10px 16px}
+.quick-task-status{font-size:12px;line-height:1.5;min-height:18px;margin-top:7px;color:#ace1ec}
+.quick-task-status a{color:#a8f4f4;text-decoration:underline;text-underline-offset:3px}
+.quick-task-status.error{color:#ffb4bc}
+@media(max-width:400px){.quick-task-row button{padding-inline:12px;font-size:13px}}
+
 /* HydroTank MVP: water remaining in a bottle, completion in an outer HUD ring. */
 .hydro{--accent:#6eeafb;--glow:#145677;background:radial-gradient(ellipse at 52% 38%,#12435a85,transparent 68%),linear-gradient(160deg,#092535,#071621);border-color:#32869a}
 .hydro::before{width:260px;height:260px;right:calc(50% - 130px);top:80px;border-color:#41a7bf38}
@@ -168,7 +179,18 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
 </section>
 <section class="widget widget-focus" data-screen="home" aria-labelledby="focusTitle"><div class="widget-heading"><span class="widget-kicker">01 · TRYB SKUPIENIA</span><h2 id="focusTitle">✨ Jedna rzecz na teraz</h2></div><div id="focus" class="widget-content"></div></section>
 <section class="widget widget-missions" data-screen="home" aria-labelledby="missionsTitle"><div class="widget-heading"><span class="widget-kicker">02 · PLAN OPERACYJNY</span><h2 id="missionsTitle">🎯 Top 5 misji</h2></div><div id="tasks" class="widget-content"></div></section>
-<section class="widget widget-missions" data-screen="tasks" aria-labelledby="allTasksTitle"><div class="widget-heading"><span class="widget-kicker">LISTA ZADAŃ</span><h2 id="allTasksTitle">🎯 Zadania</h2></div><div id="tasksAll" class="widget-content"></div></section>
+<section class="widget widget-missions" data-screen="tasks" aria-labelledby="allTasksTitle">
+  <div class="widget-heading"><span class="widget-kicker">LISTA ZADAŃ</span><h2 id="allTasksTitle">🎯 Zadania</h2></div>
+  <form id="quickTaskForm" class="quick-task-form">
+    <label class="quick-task-label" for="quickTaskInput">SZYBKIE ZADANIE</label>
+    <div class="quick-task-row">
+      <input id="quickTaskInput" class="input" type="text" placeholder="Co trzeba zrobić?" maxlength="180" autocomplete="off" required disabled>
+      <button id="quickTaskButton" type="submit" disabled>+ Dodaj</button>
+    </div>
+    <div id="quickTaskStatus" class="quick-task-status" role="status" aria-live="polite">Połącz aplikację, aby dodawać zadania.</div>
+  </form>
+  <div id="tasksAll" class="widget-content"></div>
+</section>
 
 <section class="widget hydro" data-screen="habits" aria-labelledby="hydroTitle">
   <div class="widget-heading"><span class="widget-kicker">HYDRO CONTROL · DZIŚ</span><h2 id="hydroTitle">💧 Zbiornik nawodnienia</h2></div>
@@ -238,8 +260,12 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   const API = "https://adhd-life-os-api.noommys.workers.dev/api/dashboard";
   const STORAGE_KEY = "adhd-life-os.dashboard-key";
   const TASK_UPDATE_API = API.replace(/\/api\/dashboard$/, "/api/tasks/");
+  const TASK_CREATE_API = API.replace(/\/api\/dashboard$/, "/api/tasks");
   const WATER_API = API.replace(/\/api\/dashboard$/, "/api/water");
   let canEditTasks = false;
+  let canCreateTasks = false;
+  let taskCreatePending = false;
+  let dashboardSnapshot = null;
   const $ = id => document.getElementById(id);
   const navItems = Array.from(document.querySelectorAll(".bottom-nav .nav-item"));
   function selectScreen(screen, scrollToTop = true) {
@@ -361,8 +387,71 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     const detail = [task.status, task.due ? "Termin: " + task.due.slice(0,10) : "", task.nextStep ? "Następny krok: " + task.nextStep : ""].filter(Boolean).join(" · ");
     if (detail) line(el, detail, "muted");
   }
+  function updateQuickTaskAvailability() {
+    const available = canCreateTasks && !taskCreatePending && !!key && !$("connected").hidden;
+    $("quickTaskInput").disabled = !available;
+    $("quickTaskButton").disabled = !available;
+  }
+
+  async function createQuickTask(event) {
+    event.preventDefault();
+    if (!canCreateTasks || taskCreatePending || !key || $("connected").hidden) return;
+    const input = $("quickTaskInput");
+    const title = input.value.trim();
+    if (!title || Array.from(title).length > 180) {
+      setStatus("quickTaskStatus", "Podaj nazwę zadania (maksymalnie 180 znaków).", true);
+      return;
+    }
+    const requestingKey = key;
+    taskCreatePending = true;
+    updateQuickTaskAvailability();
+    setStatus("quickTaskStatus", "Zapisuję nowe zadanie w Notion…", false);
+    try {
+      const response = await fetch(TASK_CREATE_API, {
+        method: "POST",
+        headers: { Authorization: "Bearer " + requestingKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const result = await response.json();
+      if (!result?.ok || !result.task || !pageId(result.task) || typeof result.task.title !== "string") {
+        throw new Error("Invalid response");
+      }
+      if (requestingKey !== key || $("connected").hidden) return;
+      if (dashboardSnapshot?.tasks) {
+        const before = items(dashboardSnapshot.tasks);
+        dashboardSnapshot = {
+          ...dashboardSnapshot,
+          tasks: {
+            ...dashboardSnapshot.tasks,
+            items: [result.task, ...before.filter(task => task.id !== result.task.id)]
+          }
+        };
+        showData(dashboardSnapshot);
+      }
+      input.value = "";
+      const node = $("quickTaskStatus");
+      node.replaceChildren();
+      node.classList.remove("error");
+      node.append("✓ Dodano do Notion: ");
+      node.appendChild(safeLink(result.task.url, result.task.title));
+      input.focus();
+    } catch (error) {
+      if (requestingKey !== key || $("connected").hidden) return;
+      console.error("Life OS task creation:", error?.message || "unknown");
+      setStatus("quickTaskStatus", "Nie udało się potwierdzić zapisu. Sprawdź listę w Notion przed ponowieniem.", true);
+    } finally {
+      taskCreatePending = false;
+      updateQuickTaskAvailability();
+    }
+  }
+  $("quickTaskForm").addEventListener("submit", createQuickTask);
+
   function showData(data) {
+    dashboardSnapshot = data;
     canEditTasks = data.capabilities?.taskStatusWrite === true;
+    canCreateTasks = data.capabilities?.taskCreate === true;
     const taskHolder = $("tasks"), allTaskHolder = $("tasksAll"), habitHolder = $("habits"), noteHolder = $("notes"), focusHolder = $("focus"), deadlineHolder = $("deadline");
     [taskHolder, allTaskHolder, habitHolder, noteHolder, focusHolder, deadlineHolder].forEach(clear);
     const tasks = items(data.tasks).filter(x => x.status !== "Zrobione" && x.status !== "Porzucone");
@@ -396,6 +485,10 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
       : (canEditTasks ? "Zadania możesz odhaczać w aplikacji; pozostałe dane otwórz w Notion." : "Dane są tylko do odczytu. Dotknij pozycji, aby zobaczyć szczegóły.");
     $("login").hidden = true;
     $("connected").hidden = false;
+    updateQuickTaskAvailability();
+    if (!canCreateTasks) {
+      setStatus("quickTaskStatus", "Dodawanie zadań będzie dostępne po wdrożeniu Workera v1.6.", false);
+    }
     setStatus("syncStatus", "Zaktualizowano: " + new Date().toLocaleTimeString("pl-PL"), false);
   }
 
@@ -449,6 +542,11 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   $("refresh").addEventListener("click", () => load(key));
   $("logout").addEventListener("click", () => {
     key = "";
+    canCreateTasks = false;
+    dashboardSnapshot = null;
+    $("quickTaskInput").value = "";
+    setStatus("quickTaskStatus", "Połącz aplikację, aby dodawać zadania.", false);
+    updateQuickTaskAvailability();
     resetWater();
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     $("connected").hidden = true;
