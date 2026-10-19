@@ -204,6 +204,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     <button class="hydro-preset" type="button" data-water-amount="500">+500 ml</button>
   </div>
   <div class="hydro-toolbar">
+    <button id="hydroRefresh" type="button" class="secondary">↻ Synchronizuj</button>
     <button id="hydroUndo" type="button" class="secondary">↶ Cofnij ostatnie</button>
     <button id="hydroGoalToggle" type="button" class="secondary" aria-expanded="false">⚙ Cel</button>
     <button id="hydroHistoryToggle" type="button" class="secondary" aria-expanded="false">Historia</button>
@@ -215,7 +216,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   </form>
   <div id="hydroFeedback" class="hydro-feedback" role="status"></div>
   <div id="hydroHistory" class="hydro-history" hidden></div>
-  <div class="muted">Historia przechowywana lokalnie w tej przeglądarce — jeszcze bez synchronizacji z Notion.</div>
+  <div id="hydroStorageNote" class="muted">Porcje, cel i historia są synchronizowane z Notion przez Cloudflare Worker.</div>
 </section>
 <section class="widget widget-rituals" data-screen="habits" aria-labelledby="ritualsTitle"><div class="widget-heading"><span class="widget-kicker">03 · DOBRE NAWYKI</span><h2 id="ritualsTitle">☀️ Dzisiejsze rytuały</h2></div><div id="habits" class="widget-content"></div></section>
 <section class="widget widget-deadline" data-screen="home" aria-labelledby="deadlineTitle"><div class="widget-heading"><span class="widget-kicker">04 · NA HORYZONCIE</span><h2 id="deadlineTitle">📅 Najbliższy termin</h2></div><div id="deadline" class="widget-content"></div></section>
@@ -237,6 +238,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   const API = "https://adhd-life-os-api.noommys.workers.dev/api/dashboard";
   const STORAGE_KEY = "adhd-life-os.dashboard-key";
   const TASK_UPDATE_API = API.replace(/\/api\/dashboard$/, "/api/tasks/");
+  const WATER_API = API.replace(/\/api\/dashboard$/, "/api/water");
   let canEditTasks = false;
   const $ = id => document.getElementById(id);
   const navItems = Array.from(document.querySelectorAll(".bottom-nav .nav-item"));
@@ -425,6 +427,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
       key = inputKey;
       try { localStorage.setItem(STORAGE_KEY, key); } catch (_) {}
       $("apiKey").value = "";
+      refreshWater();
     } catch (error) {
       console.error("Life OS dashboard:", stage, error);
       $("connected").hidden = true;
@@ -446,6 +449,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   $("refresh").addEventListener("click", () => load(key));
   $("logout").addEventListener("click", () => {
     key = "";
+    resetWater();
     try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
     $("connected").hidden = true;
     $("login").hidden = false;
@@ -454,96 +458,271 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     setStatus("loginStatus", "Rozłączono. Klucz usunięto z pamięci aplikacji.", false);
   });
 
-  /* HydroTank MVP: local-only timestamped event history, scoped to this browser. */
-  const WATER_KEY = "adhd-life-os.hydrotank.v1";
-  const waterToday = () => new Date().toLocaleDateString("sv-SE");
+  /* HydroTank: all confirmed writes go through Cloudflare Worker -> Notion.
+     Legacy localStorage entries remain untouched and are never silently imported. */
   const waterNumber = n => new Intl.NumberFormat("pl-PL").format(n);
-  let waterState = {goal:2000,entries:[]};
-  try {
-    const raw = JSON.parse(localStorage.getItem(WATER_KEY) || "null");
-    if (raw && Number.isInteger(raw.goal) && raw.goal>=250 && raw.goal<=10000 && Array.isArray(raw.entries)) {
-      waterState.goal=raw.goal;
-      waterState.entries=raw.entries.filter(e => e && typeof e.id==="string" && typeof e.date==="string" && Number.isInteger(e.ml) && e.ml>0 && e.ml<=2000 && typeof e.at==="string").slice(-3000);
-    }
-  } catch (_) {}
-  let waterSavingError = false;
-  function saveWater() {
-    try {localStorage.setItem(WATER_KEY,JSON.stringify(waterState));waterSavingError=false;return true}
-    catch (_) {waterSavingError=true;return false}
+  const waterButtons = Array.from(document.querySelectorAll("[data-water-amount]"));
+  let waterState = null;
+  let waterBusy = false;
+  let waterReady = false;
+  let waterGeneration = 0;
+
+  function waterMessage(message, isError = false) {
+    setStatus("hydroFeedback", message, isError);
   }
-  function waterEntriesForToday(){return waterState.entries.filter(e=>e.date===waterToday())}
-  function renderWater(){
-    const entries=waterEntriesForToday();
-    const drank=entries.reduce((sum,e)=>sum+e.ml,0),goal=waterState.goal,remaining=Math.max(0,goal-drank);
-    const restPercent=remaining/goal,completion=Math.min(1,drank/goal);
-    $("hydroRemaining").textContent=waterNumber(remaining)+" ml";
-    $("hydroConsumed").textContent="Wypite: "+waterNumber(drank)+" / "+waterNumber(goal)+" ml";
-    $("hydroBottlePercent").textContent=Math.round(restPercent*100)+"%";
-    const waterHeight=167*restPercent;
-    $("hydroWater").setAttribute("y",String(232-waterHeight));
-    $("hydroWater").setAttribute("height",String(waterHeight));
-    $("hydroRing").style.strokeDasharray=String(2*Math.PI*99);
-    $("hydroRing").style.setProperty("--ring-offset",String(2*Math.PI*99*(1-completion)));
-    $("hydroDayStatus").textContent=remaining===0?(drank>goal?"✓ Cel osiągnięty · +"+waterNumber(drank-goal)+" ml ponad plan":"✓ Cel osiągnięty!"):(drank?"Każdy łyk przybliża Cię do celu.":"Pierwsza porcja czeka 💧");
-    $("hydroDayStatus").classList.toggle("hydro-celebrate",remaining===0);
-    $("hydroUndo").disabled=entries.length===0;
-    $("hydroGoalInput").value=String(goal);
-    if(waterSavingError)$("hydroFeedback").textContent="Nie udało się zapisać historii w przeglądarce.";
+
+  function resetWater() {
+    waterGeneration++;
+    waterBusy = false;
+    waterReady = false;
+    waterState = null;
+    waterMessage("Połącz aplikację, aby pobrać nawodnienie z Notion.");
+    renderWater();
+  }
+
+  function validateWaterState(data) {
+    if (!data || data.ok !== true || !Number.isSafeInteger(data.goal) ||
+        data.goal < 250 || data.goal > 10000 ||
+        !Number.isSafeInteger(data.consumed) || data.consumed < 0 ||
+        !Array.isArray(data.presets) || data.presets.length !== 3 ||
+        data.presets.some(n => !Number.isSafeInteger(n) || n < 1 || n > 2000) ||
+        !Array.isArray(data.entries) || !Array.isArray(data.history)) {
+      throw Error("Nieprawidłowy format danych HydroTank.");
+    }
+    return {
+      date: String(data.date || ""),
+      goal: data.goal,
+      consumed: data.consumed,
+      presets: data.presets,
+      entries: data.entries.filter(e => e && typeof e.id === "string" && Number.isSafeInteger(e.ml) && e.ml > 0),
+      history: data.history.filter(day => day && typeof day.date === "string" && Number.isSafeInteger(day.ml) && day.ml >= 0)
+    };
+  }
+
+  async function waterRequest(method = "GET", suffix = "", body) {
+    if (!key || $("connected").hidden) throw Error("Najpierw połącz aplikację.");
+    const headers = { "Authorization": "Bearer " + key };
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const response = await fetch(WATER_API + suffix, {
+      method,
+      headers,
+      cache: "no-store",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) })
+    });
+    if (response.status === 401) throw Error("Odmowa dostępu (401). Połącz aplikację ponownie.");
+    if (response.status === 403) throw Error("Brak uprawnień do danych HydroTank (403).");
+    if (!response.ok) throw Error("Worker zwrócił HTTP " + response.status + " dla HydroTank.");
+    const data = await response.json();
+    if (!data || data.ok !== true) throw Error("Worker nie potwierdził operacji.");
+    return data;
+  }
+
+  function renderWater() {
+    const data = waterState;
+    const goal = data?.goal || 0, drank = data?.consumed || 0;
+    const remaining = Math.max(0, goal - drank);
+    const restPercent = goal ? remaining / goal : 0;
+    const progress = goal ? Math.min(1, drank / goal) : 0;
+    $("hydroRemaining").textContent = data ? waterNumber(remaining) + " ml" : "—";
+    $("hydroConsumed").textContent = data ? "Wypite: " + waterNumber(drank) + " / " + waterNumber(goal) + " ml" : "Oczekiwanie na dane z Notion";
+    $("hydroBottlePercent").textContent = data ? Math.round(restPercent * 100) + "%" : "—";
+    const fillHeight = 167 * restPercent;
+    $("hydroWater").setAttribute("y", String(232 - fillHeight));
+    $("hydroWater").setAttribute("height", String(fillHeight));
+    const circumference = 2 * Math.PI * 99;
+    $("hydroRing").style.strokeDasharray = String(circumference);
+    $("hydroRing").style.setProperty("--ring-offset", String(circumference * (1 - progress)));
+    $("hydroDayStatus").textContent = !data ? "Połączono? Synchronizuj dane." :
+      remaining === 0 ? (drank > goal ? "✓ Cel osiągnięty · +" + waterNumber(drank - goal) + " ml ponad plan" : "✓ Cel osiągnięty!") :
+      (drank ? "Każda porcja przybliża Cię do celu." : "Pierwsza porcja czeka 💧");
+    $("hydroDayStatus").classList.toggle("hydro-celebrate", !!data && remaining === 0);
+    const active = !!key && !$("connected").hidden && waterReady && !waterBusy;
+    waterButtons.forEach((button, index) => {
+      const amount = data?.presets[index] || [150, 250, 500][index];
+      button.dataset.waterAmount = String(amount);
+      button.textContent = "+" + waterNumber(amount) + " ml";
+      button.disabled = !active;
+    });
+    $("hydroUndo").disabled = !active || !data.entries.length;
+    $("hydroRefresh").disabled = !key || $("connected").hidden || waterBusy;
+    $("hydroGoalToggle").disabled = !active;
+    $("hydroHistoryToggle").disabled = !data;
+    $("hydroGoalForm").querySelector('button[type="submit"]').disabled = !active;
+    if (data && $("hydroGoalForm").hidden) $("hydroGoalInput").value = String(data.goal);
     renderWaterHistory();
   }
-  function renderWaterHistory(){
-    const box=$("hydroHistory");
+
+  function renderWaterHistory() {
+    const box = $("hydroHistory");
     box.replaceChildren();
-    const today=waterToday(), days=new Map();
-    for(const e of waterState.entries){
-      if(e.date<=today)days.set(e.date,(days.get(e.date)||0)+e.ml);
+    const heading = document.createElement("strong");
+    heading.textContent = "Ostatnie 7 dni";
+    box.appendChild(heading);
+    if (!waterState) {
+      const p = document.createElement("div");
+      p.textContent = "Brak pobranej historii.";
+      box.appendChild(p);
+      return;
     }
-    const entries=Array.from(days.entries()).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,7);
-    const heading=document.createElement("strong");heading.textContent="Ostatnie dni z wpisami";box.appendChild(heading);
-    const list=document.createElement("ol");
-    for(const [date,ml] of entries){const li=document.createElement("li");li.textContent=date+" · "+waterNumber(ml)+" ml";list.appendChild(li)}
-    if(!entries.length){const p=document.createElement("div");p.textContent="Brak zapisanych porcji.";box.appendChild(p)}
-    else box.appendChild(list);
+    const list = document.createElement("ol");
+    for (const day of waterState.history) {
+      const li = document.createElement("li");
+      li.textContent = day.date + " · " + waterNumber(day.ml) + " ml";
+      list.appendChild(li);
+    }
+    box.appendChild(list);
   }
-  document.querySelectorAll("[data-water-amount]").forEach(btn=>btn.addEventListener("click",()=>{
-    const ml=Number(btn.dataset.waterAmount);
-    if(![150,250,500].includes(ml))return;
-    const entry={id:String(Date.now())+"-"+Math.random().toString(36).slice(2),date:waterToday(),at:new Date().toISOString(),ml};
-    waterState.entries.push(entry);
-    if(!saveWater())waterState.entries.pop();
-    $("hydroFeedback").textContent=waterSavingError?"Zapis niedostępny. Porcja nie została dodana.":"Dodano "+ml+" ml";
+
+  async function refreshWater() {
+    if (!key || $("connected").hidden || waterBusy) return;
+    const generation = ++waterGeneration;
+    waterBusy = true;
+    waterReady = false;
     renderWater();
+    waterMessage("Synchronizuję z Notion…");
+    try {
+      const data = await waterRequest();
+      if (generation !== waterGeneration) return;
+      waterState = validateWaterState(data);
+      waterReady = true;
+      waterMessage("Dane z Notion aktualne · " + new Date().toLocaleTimeString("pl-PL"));
+    } catch (error) {
+      if (generation !== waterGeneration) return;
+      console.error("HydroTank read:", error);
+      waterMessage("Nie udało się pobrać nawodnienia: " + error.message, true);
+    } finally {
+      if (generation === waterGeneration) {
+        waterBusy = false;
+        renderWater();
+      }
+    }
+  }
+
+  function applyConfirmedWater(operation, result) {
+    if (!waterState) return;
+    if (operation.kind === "add" && result.entry && result.entry.status === "Aktywny") {
+      if (!waterState.entries.some(entry => entry.id === result.entry.id)) {
+        waterState.entries.unshift(result.entry);
+        waterState.consumed += result.entry.ml;
+      }
+    } else if (operation.kind === "undo" && result.entry) {
+      const previous = waterState.entries.find(entry => entry.id === result.entry.id);
+      if (previous) {
+        waterState.consumed = Math.max(0, waterState.consumed - previous.ml);
+        waterState.entries = waterState.entries.filter(entry => entry.id !== result.entry.id);
+      }
+    } else if (operation.kind === "goal" && Number.isSafeInteger(result.goal)) {
+      waterState.goal = result.goal;
+    }
+    // GET immediately after the write supplies the canonical history and totals.
+    const today = waterState.history.find(row => row.date === waterState.date);
+    if (today) today.ml = waterState.consumed;
+  }
+
+  async function writeWater(operation) {
+    if (!waterReady || waterBusy || !key || $("connected").hidden) return;
+    const generation = ++waterGeneration;
+    waterBusy = true;
+    renderWater();
+    waterMessage("Zapisuję w Notion…");
+    let confirmed = false;
+    try {
+      const result = await waterRequest(operation.method, operation.suffix, operation.body);
+      if (generation !== waterGeneration) return;
+      confirmed = true;
+      applyConfirmedWater(operation, result);
+      if (operation.kind === "goal") {
+        $("hydroGoalForm").hidden = true;
+        $("hydroGoalToggle").setAttribute("aria-expanded", "false");
+      }
+      try {
+        const data = await waterRequest();
+        if (generation !== waterGeneration) return;
+        waterState = validateWaterState(data);
+        waterReady = true;
+        waterMessage(operation.message + " · zapisano w Notion");
+      } catch (error) {
+        if (generation !== waterGeneration) return;
+        console.error("HydroTank post-write refresh:", error);
+        waterReady = false;
+        waterMessage("Zapis w Notion potwierdzony, ale odświeżenie się nie udało. Kliknij Synchronizuj.", true);
+      }
+    } catch (error) {
+      if (generation !== waterGeneration) return;
+      console.error("HydroTank write:", error);
+      waterReady = false;
+      waterMessage(confirmed ? "Zapis potwierdzony. Kliknij Synchronizuj." :
+        "Nie można potwierdzić zapisu: " + error.message + " Sprawdź historię przed ponowieniem.", true);
+    } finally {
+      if (generation === waterGeneration) {
+        waterBusy = false;
+        renderWater();
+      }
+    }
+  }
+
+  function waterOperationId() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID().replace(/-/g, "");
+    }
+    return "water_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
+  }
+
+  waterButtons.forEach(button => button.addEventListener("click", () => {
+    const ml = Number(button.dataset.waterAmount);
+    if (!waterState || !waterState.presets.includes(ml)) return;
+    writeWater({
+      kind: "add", method: "POST", suffix: "",
+      body: { ml, operationId: waterOperationId() },
+      message: "Dodano " + waterNumber(ml) + " ml"
+    });
   }));
-  $("hydroUndo").addEventListener("click",()=>{
-    const day=waterToday();
-    const index=waterState.entries.findLastIndex(e=>e.date===day);
-    if(index<0)return;
-    const removed=waterState.entries.splice(index,1)[0];
-    if(!saveWater())waterState.entries.splice(index,0,removed);
-    $("hydroFeedback").textContent=waterSavingError?"Nie można cofnąć — pamięć przeglądarki jest niedostępna.":"Cofnięto "+removed.ml+" ml";
-    renderWater();
+
+  $("hydroUndo").addEventListener("click", () => {
+    const entry = waterState?.entries[0];
+    if (!entry || !/^[a-f0-9-]{32,36}$/i.test(entry.id)) return;
+    writeWater({
+      kind: "undo", method: "PATCH", suffix: "/" + entry.id,
+      body: { status: "Cofnięty" },
+      message: "Cofnięto " + waterNumber(entry.ml) + " ml"
+    });
   });
-  $("hydroGoalToggle").addEventListener("click",()=>{
-    $("hydroGoalForm").hidden=!$("hydroGoalForm").hidden;
-    $("hydroGoalToggle").setAttribute("aria-expanded",String(!$("hydroGoalForm").hidden));
+
+  $("hydroRefresh").addEventListener("click", refreshWater);
+  $("hydroGoalToggle").addEventListener("click", () => {
+    $("hydroGoalForm").hidden = !$("hydroGoalForm").hidden;
+    $("hydroGoalToggle").setAttribute("aria-expanded", String(!$("hydroGoalForm").hidden));
+    if (!$("hydroGoalForm").hidden && waterState) $("hydroGoalInput").value = String(waterState.goal);
   });
-  $("hydroHistoryToggle").addEventListener("click",()=>{
-    $("hydroHistory").hidden=!$("hydroHistory").hidden;
-    $("hydroHistoryToggle").setAttribute("aria-expanded",String(!$("hydroHistory").hidden));
+  $("hydroHistoryToggle").addEventListener("click", () => {
+    $("hydroHistory").hidden = !$("hydroHistory").hidden;
+    $("hydroHistoryToggle").setAttribute("aria-expanded", String(!$("hydroHistory").hidden));
   });
-  $("hydroGoalForm").addEventListener("submit",e=>{
-    e.preventDefault();
-    const goal=Number($("hydroGoalInput").value);
-    if(!Number.isInteger(goal)||goal<250||goal>10000||goal%50!==0)return;
-    const previous=waterState.goal;waterState.goal=goal;
-    if(!saveWater())waterState.goal=previous;
-    $("hydroFeedback").textContent=waterSavingError?"Nie udało się zapisać celu.":"Zmieniono cel na "+waterNumber(goal)+" ml";
-    $("hydroGoalForm").hidden=true;
-    $("hydroGoalToggle").setAttribute("aria-expanded","false");
-    renderWater();
+  $("hydroGoalForm").addEventListener("submit", event => {
+    event.preventDefault();
+    const goal = Number($("hydroGoalInput").value);
+    if (!Number.isSafeInteger(goal) || goal < 250 || goal > 10000 || goal % 50 !== 0) {
+      waterMessage("Cel musi mieścić się w zakresie 250–10000 ml (co 50 ml).", true);
+      return;
+    }
+    writeWater({
+      kind: "goal", method: "PATCH", suffix: "/goal",
+      body: { goal }, message: "Zmieniono cel na " + waterNumber(goal) + " ml"
+    });
   });
-  renderWater();
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden)renderWater()});
+  try {
+    const legacy = JSON.parse(localStorage.getItem("adhd-life-os.hydrotank.v1") || "null");
+    if (Array.isArray(legacy?.entries) && legacy.entries.length) {
+      $("hydroStorageNote").textContent = "Nowe wpisy są zapisywane w Notion. Starsze wpisy lokalne pozostają na tym urządzeniu i nie zostały automatycznie przeniesione.";
+    }
+  } catch (_) {}
+  resetWater();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && document.body.dataset.activeScreen === "habits") refreshWater();
+  });
+  navItems.forEach(item => item.addEventListener("click", () => {
+    if (item.dataset.target === "habits") refreshWater();
+  }));
   if (key) load(key);
 })();
 </script>
