@@ -587,6 +587,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     waterRemote=waterResponse(remote);
     waterVersionSupported=waterRemote.writeMode==="daily";
     const row=ensureWaterDay(waterRemote.date);
+    row.goal=waterRemote.goal;
     if (waterRemote.dayStatus==="Wykonany" && row.ml<waterRemote.consumed && !row.reversed) {
       row.ml=waterRemote.consumed;row.steps=[];
     }
