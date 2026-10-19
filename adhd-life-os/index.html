@@ -107,7 +107,7 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
 <div id="notes"></div>
 <p id="moreInfo" class="muted"></p>
 </section>
-<footer>ADHD Life OS · Twój osobisty pulpit</footer>
+<footer>ADHD Life OS · Twój osobisty pulpit<br><small id="buildVersion">Wersja diagnostyczna 1.3.2</small></footer>
 </main>
 <script>
 (function () {
@@ -261,24 +261,30 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
     $("connectButton").disabled = true;
     $("refresh").disabled = true;
     setStatus($("connected").hidden ? "loginStatus" : "syncStatus", "Pobieranie danych…", false);
+    let stage = "Połączenie z Workerem";
     try {
       const response = await fetch(API, {
         method: "GET",
         headers: { "Authorization": "Bearer " + inputKey },
         cache: "no-store"
       });
-      if (response.status === 401) throw new Error("Nie udało się zalogować. Sprawdź klucz.");
-      if (!response.ok) throw new Error("Nie udało się pobrać danych. Spróbuj ponownie później.");
+      if (response.status === 401) throw new Error("Klucz odrzucony (401).");
+      if (!response.ok) throw new Error("Worker zwrócił HTTP " + response.status + ".");
+      stage = "Odczyt odpowiedzi Workera";
       const data = await response.json();
       if (!data.ok || !data.tasks || !data.habits || !data.notes) throw new Error("Nie udało się pobrać danych. Spróbuj ponownie później.");
+      stage = "Wyświetlanie list";
+      showData(data);
       key = inputKey;
       try { localStorage.setItem(STORAGE_KEY, key); } catch (_) {}
       $("apiKey").value = "";
-      showData(data);
     } catch (error) {
+      console.error("Life OS dashboard:", stage, error);
       $("connected").hidden = true;
       $("login").hidden = false;
-      setStatus("loginStatus", "Nie udało się połączyć. Sprawdź połączenie lub spróbuj ponownie później.", true);
+      const reason = error?.message || "Nieznany błąd";
+      const safeReason = /^(Klucz odrzucony|Worker zwrócił HTTP|Nie udało się pobrać danych)/.test(reason) ? reason : "Wystąpił błąd aplikacji — szczegóły w konsoli.";
+      setStatus("loginStatus", stage + ": " + safeReason + " [1.3.2]", true);
     } finally {
       $("connectButton").disabled = false;
       $("refresh").disabled = false;
