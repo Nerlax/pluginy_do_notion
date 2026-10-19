@@ -67,6 +67,27 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
 .taskstatus.error{color:#ffb4bc}
 .taskbody{flex:1;min-width:0}
 .taskcontrol{display:flex;gap:12px;align-items:flex-start}
+
+/* Six independent widget identities; CSS vector ornamentation is resolution-independent. */
+.dashboard-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:24px 0 18px}
+.metric{min-width:0;position:relative;overflow:hidden;padding:16px 10px 14px;border-radius:17px;border:1px solid #ffffff24;background:linear-gradient(150deg,#273857,#111d2c);display:flex;flex-direction:column;align-items:center;text-align:center}
+.metric:nth-child(1){background:radial-gradient(circle at 90% 0%,#7857c65c,transparent 62%),linear-gradient(150deg,#29345f,#121d32)}
+.metric:nth-child(2){background:radial-gradient(circle at 90% 0%,#45d7a65c,transparent 62%),linear-gradient(150deg,#214d48,#10242d)}
+.metric:nth-child(3){background:radial-gradient(circle at 90% 0%,#55b8e15c,transparent 62%),linear-gradient(150deg,#25445d,#111f37)}
+.metric-icon{font-size:20px}.metric-value{font-size:28px;font-weight:800;margin:5px 0}.metric-label{font-size:11px;color:#d1dceb;line-height:1.25}
+.widget{--accent:#7bd6ec;--glow:#356c8d;position:relative;isolation:isolate;overflow:hidden;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:22px;padding:20px 15px 11px;margin:18px 0;background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--glow) 57%,transparent),transparent 65%),linear-gradient(155deg,#122333,#081923);box-shadow:0 12px 28px #0004}
+.widget::before{content:"";position:absolute;width:150px;height:150px;right:-44px;top:-66px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:50%;box-shadow:0 0 0 21px #ffffff05,0 0 0 46px #ffffff04;pointer-events:none;z-index:-1}
+.widget::after{content:"";position:absolute;right:15px;top:22px;width:55px;height:1px;background:linear-gradient(90deg,transparent,var(--accent));opacity:.7;pointer-events:none}
+.widget .widget-heading{position:relative;margin-bottom:15px;padding-right:28px}.widget-kicker{font-size:10px;letter-spacing:.16em;font-weight:800;color:var(--accent)}.widget h2{font-size:19px;margin:5px 0 0}.widget-content>.card{margin:9px 0;background:#071724b8;box-shadow:none;border-color:#ffffff21}.widget-content .muted{overflow-wrap:anywhere}
+.widget-focus{--accent:#ceb3ff;--glow:#5d3987;min-height:184px;background:radial-gradient(ellipse at right top,#69437f8c,transparent 61%),linear-gradient(145deg,#261d43,#0a1b2d)}
+.widget-focus .widget-content>.card{border-left:3px solid #c6acff;padding:20px}
+.widget-missions{--accent:#6ed0f7;--glow:#1c6398}.widget-missions .widget-content .card{border-left:2px solid #459dd3}
+.widget-rituals{--accent:#8ae6b5;--glow:#216854;background:radial-gradient(circle at 100% 0%,#23685580,transparent 60%),linear-gradient(145deg,#122f2e,#091b24)}.widget-rituals .widget-content>.card{background:#0c2a2bba}
+.widget-deadline{--accent:#f9c68b;--glow:#795026;background:radial-gradient(circle at 100% 0%,#82502e80,transparent 60%),linear-gradient(145deg,#30283a,#101b2c)}.widget-deadline .widget-content>.card{border-left:3px solid #f9c68b}
+.widget-inbox{--accent:#e0a6e6;--glow:#70457b;background:radial-gradient(circle at 100% 0%,#76438680,transparent 60%),linear-gradient(145deg,#2a2043,#0d1b2d)}
+#connected>.controls{margin-top:24px}
+@media (min-width:780px){.app{max-width:980px}.hero{min-height:400px}.dashboard-metrics{gap:15px}.widget-focus,.widget-deadline{min-height:200px}#connected{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}#connected>.controls,#connected>.dashboard-metrics,#connected>#moreInfo{grid-column:1/-1}.widget-missions{grid-row:span 2}.widget{align-self:start}.widget-inbox{grid-column:2}}
+@media (max-width:360px){.metric{padding-inline:5px}.metric-label{font-size:10px}.widget{padding-inline:12px}}
 </style>
 </head>
 <body>
@@ -99,15 +120,19 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
 <button id="refresh" type="button" class="secondary">↻ Odśwież</button>
 <button id="logout" type="button" class="secondary">Rozłącz</button>
 </div>
-<h2>🎯 Teraz</h2>
-<div id="tasks"></div>
-<h2>☀️ Wykonania nawyków</h2>
-<div id="habits"></div>
-<h2>📥 Notatki</h2>
-<div id="notes"></div>
+<section class="dashboard-metrics" aria-label="Podsumowanie dnia">
+<div class="metric"><span class="metric-icon">🎯</span><span class="metric-value" id="metricTasks">—</span><span class="metric-label">Otwarte zadania</span></div>
+<div class="metric"><span class="metric-icon">☀️</span><span class="metric-value" id="metricHabits">—</span><span class="metric-label">Wykonane rytuały</span></div>
+<div class="metric"><span class="metric-icon">📥</span><span class="metric-value" id="metricNotes">—</span><span class="metric-label">Notatki w inboxie</span></div>
+</section>
+<section class="widget widget-focus" aria-labelledby="focusTitle"><div class="widget-heading"><span class="widget-kicker">01 · TRYB SKUPIENIA</span><h2 id="focusTitle">✨ Jedna rzecz na teraz</h2></div><div id="focus" class="widget-content"></div></section>
+<section class="widget widget-missions" aria-labelledby="missionsTitle"><div class="widget-heading"><span class="widget-kicker">02 · PLAN OPERACYJNY</span><h2 id="missionsTitle">🎯 Top 5 misji</h2></div><div id="tasks" class="widget-content"></div></section>
+<section class="widget widget-rituals" aria-labelledby="ritualsTitle"><div class="widget-heading"><span class="widget-kicker">03 · DOBRE NAWYKI</span><h2 id="ritualsTitle">☀️ Dzisiejsze rytuały</h2></div><div id="habits" class="widget-content"></div></section>
+<section class="widget widget-deadline" aria-labelledby="deadlineTitle"><div class="widget-heading"><span class="widget-kicker">04 · NA HORYZONCIE</span><h2 id="deadlineTitle">📅 Najbliższy termin</h2></div><div id="deadline" class="widget-content"></div></section>
+<section class="widget widget-inbox" aria-labelledby="notesTitle"><div class="widget-heading"><span class="widget-kicker">05 · PRZECHWYĆ MYŚL</span><h2 id="notesTitle">📥 Szybki inbox</h2></div><div id="notes" class="widget-content"></div></section>
 <p id="moreInfo" class="muted"></p>
 </section>
-<footer>ADHD Life OS · Twój osobisty pulpit<br><small id="buildVersion">Wersja diagnostyczna 1.3.2</small></footer>
+<footer>ADHD Life OS · Twój osobisty pulpit<br><small id="buildVersion">Wersja wizualna 2.0</small></footer>
 </main>
 <script>
 (function () {
@@ -198,13 +223,13 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
   }
   function showData(data) {
     canEditTasks = data.capabilities?.taskStatusWrite === true;
-    const taskHolder = $("tasks"), habitHolder = $("habits"), noteHolder = $("notes");
-    [taskHolder, habitHolder, noteHolder].forEach(clear);
+    const taskHolder = $("tasks"), habitHolder = $("habits"), noteHolder = $("notes"), focusHolder = $("focus"), deadlineHolder = $("deadline");
+    [taskHolder, habitHolder, noteHolder, focusHolder, deadlineHolder].forEach(clear);
     const tasks = items(data.tasks).filter(x => x.status !== "Zrobione" && x.status !== "Porzucone");
     const rank = p => p === "P1" ? 0 : p === "P2" ? 1 : p === "P3" ? 2 : 3;
     tasks.sort((a,b) => rank(a.priority)-rank(b.priority) || (a.due || "9999").localeCompare(b.due || "9999"));
     if (!tasks.length) line(taskHolder, "Brak otwartych zadań w pobranych rekordach.", "card empty");
-    tasks.slice(0,8).forEach(task => {
+    tasks.slice(0,5).forEach(task => {
       const el = card(taskHolder, task, "", task.priority || "");
       if (canEditTasks && pageId(task)) {
         const original = el.querySelector(".itemrow");
@@ -229,6 +254,9 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
       if (detail) line(el, detail, "muted");
     });
 
+    if(tasks.length){const chosen=tasks[0];const focusCard=card(focusHolder,chosen,"focus-card",chosen.priority || "Priorytet");line(focusCard,chosen.nextStep ? "Następny krok: "+chosen.nextStep : "Otwórz zadanie w Notion i zacznij od najmniejszego kroku.","muted");}else line(focusHolder,"Nie masz otwartych misji. Czas na odpoczynek ✨","card empty");
+    const upcoming=tasks.filter(t=>t.due).sort((a,b)=>a.due.localeCompare(b.due));if(upcoming.length){const t=upcoming[0];const dueCard=card(deadlineHolder,t,"deadline-card",t.priority || "Termin");line(dueCard,"Termin: "+t.due.slice(0,10),"muted");}else line(deadlineHolder,"Brak terminów w pobranych zadaniach.","card empty");
+    $("metricTasks").textContent=String(tasks.length);
     const habits = items(data.habits).sort((a,b) => (b.date || "").localeCompare(a.date || ""));
     if (!habits.length) line(habitHolder, "Brak zapisanych wykonań nawyków.", "card empty");
     habits.slice(0,6).forEach(habit => {
@@ -236,9 +264,11 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
       line(el, [habit.date ? habit.date.slice(0,10) : "", habit.minimal ? "Wersja minimalna" : ""].filter(Boolean).join(" · "), "muted");
     });
 
+    $("metricHabits").textContent=String(habits.filter(h=>h.done).length)+"/"+habits.length;
     const notes = items(data.notes).filter(x => x.status !== "Zarchiwizowane");
+    $("metricNotes").textContent=String(notes.length);
     if (!notes.length) line(noteHolder, "Brak niezarchiwizowanych notatek w pobranych rekordach.", "card empty");
-    notes.slice(0,6).forEach(note => {
+    notes.slice(0,3).forEach(note => {
       const el = card(noteHolder, note, "inbox", note.status || "");
     });
     const capped = ["tasks","habits","notes"].filter(n => data[n]?.hasMore);
@@ -284,7 +314,7 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
       $("login").hidden = false;
       const reason = error?.message || "Nieznany błąd";
       const safeReason = /^(Klucz odrzucony|Worker zwrócił HTTP|Nie udało się pobrać danych)/.test(reason) ? reason : "Wystąpił błąd aplikacji — szczegóły w konsoli.";
-      setStatus("loginStatus", stage + ": " + safeReason + " [1.3.2]", true);
+      setStatus("loginStatus", stage + ": " + safeReason + " [2.0]", true);
     } finally {
       $("connectButton").disabled = false;
       $("refresh").disabled = false;
