@@ -171,7 +171,7 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
     if (typeof item.id === "string" && /^[0-9a-f-]{32,36}$/i.test(item.id)) return item.id.replace(/-/g, "");
     try {
       const path = new URL(item.url).pathname;
-      const found = path.match(/([a-f0-9]{32})(?:\\/)?$/i);
+      const found = path.split("/").filter(Boolean).pop()?.match(/([a-f0-9]{32})$/i);
       return found ? found[1] : "";
     } catch (_) { return ""; }
   }
