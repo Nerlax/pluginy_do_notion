@@ -60,6 +60,13 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
 @media (min-width:720px){.hero{min-height:530px;background-position:center 58%}}
 @media (prefers-reduced-motion:reduce){.hero::before{animation:none}}
 
+
+.taskcheck{width:21px;height:21px;accent-color:#42bec6;flex:none;margin-top:1px;cursor:pointer}
+.taskcheck:disabled{opacity:.5;cursor:wait}
+.taskstatus{font-size:12px;margin-top:8px;color:#b9dae1}
+.taskstatus.error{color:#ffb4bc}
+.taskbody{flex:1;min-width:0}
+.taskcontrol{display:flex;gap:12px;align-items:flex-start}
 </style>
 </head>
 <body>
@@ -107,6 +114,8 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
   "use strict";
   const API = "https://adhd-life-os-api.noommys.workers.dev/api/dashboard";
   const STORAGE_KEY = "adhd-life-os.dashboard-key";
+  const TASK_UPDATE_API = API.replace(/\/api\/dashboard$/, "/api/tasks/");
+  let canEditTasks = false;
   const $ = id => document.getElementById(id);
   let key = "";
   try { key = localStorage.getItem(STORAGE_KEY) || ""; } catch (_) {}
@@ -157,7 +166,38 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
   }
   const items = section => Array.isArray(section?.items) ? section.items : [];
 
+
+  function pageId(item) {
+    if (typeof item.id === "string" && /^[0-9a-f-]{32,36}$/i.test(item.id)) return item.id.replace(/-/g, "");
+    try {
+      const path = new URL(item.url).pathname;
+      const found = path.match(/([a-f0-9]{32})(?:\\/)?$/i);
+      return found ? found[1] : "";
+    } catch (_) { return ""; }
+  }
+  async function markTaskDone(task, checkbox, message) {
+    const id = pageId(task);
+    if (!id || !key) return;
+    checkbox.disabled = true;
+    message.textContent = "Zapisywanie w Notion…";
+    try {
+      const response = await fetch(TASK_UPDATE_API + id, {
+        method: "PATCH",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Zrobione" }),
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("Zapis nie powiódł się");
+      message.textContent = "Zapisano ✓";
+      await load(key);
+    } catch (_) {
+      checkbox.checked = false;
+      message.textContent = "Nie zapisano zmiany. Spróbuj ponownie.";
+      message.classList.add("error");
+    } finally { checkbox.disabled = false; }
+  }
   function showData(data) {
+    canEditTasks = data.capabilities?.taskStatusWrite === true;
     const taskHolder = $("tasks"), habitHolder = $("habits"), noteHolder = $("notes");
     [taskHolder, habitHolder, noteHolder].forEach(clear);
     const tasks = items(data.tasks).filter(x => x.status !== "Zrobione" && x.status !== "Porzucone");
@@ -166,6 +206,25 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
     if (!tasks.length) line(taskHolder, "Brak otwartych zadań w pobranych rekordach.", "card empty");
     tasks.slice(0,8).forEach(task => {
       const el = card(taskHolder, task, "", task.priority || "");
+      if (canEditTasks && pageId(task)) {
+        const original = el.querySelector(".itemrow");
+        const body = document.createElement("div");
+        body.className = "taskbody";
+        original.replaceWith(body);
+        body.appendChild(original);
+        const control = document.createElement("div");
+        control.className = "taskcontrol";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "taskcheck";
+        checkbox.setAttribute("aria-label", "Oznacz jako zrobione: " + task.title);
+        const status = document.createElement("div");
+        status.className = "taskstatus";
+        checkbox.addEventListener("change", () => { if (checkbox.checked) markTaskDone(task, checkbox, status); });
+        control.append(checkbox, body);
+        el.prepend(control);
+        el.appendChild(status);
+      }
       const detail = [task.status, task.due ? "Termin: " + task.due.slice(0,10) : "", task.nextStep ? "Następny krok: " + task.nextStep : ""].filter(Boolean).join(" · ");
       if (detail) line(el, detail, "muted");
     });
@@ -185,7 +244,7 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
     const capped = ["tasks","habits","notes"].filter(n => data[n]?.hasMore);
     $("moreInfo").textContent = capped.length
       ? "Dostępna jest tylko część wpisów. Otwórz pełne listy w widoku źródłowym."
-      : "Dane są tylko do odczytu. Dotknij pozycji, aby zobaczyć szczegóły.";
+      : (canEditTasks ? "Zadania możesz odhaczać w aplikacji; pozostałe dane otwórz w Notion." : "Dane są tylko do odczytu. Dotknij pozycji, aby zobaczyć szczegóły.");
     $("login").hidden = true;
     $("connected").hidden = false;
     setStatus("syncStatus", "Zaktualizowano: " + new Date().toLocaleTimeString("pl-PL"), false);
