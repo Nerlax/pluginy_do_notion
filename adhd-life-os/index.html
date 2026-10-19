@@ -488,6 +488,9 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     updateQuickTaskAvailability();
     if (!canCreateTasks) {
       setStatus("quickTaskStatus", "Dodawanie zadań będzie dostępne po wdrożeniu Workera v1.6.", false);
+    } else if ($("quickTaskStatus").textContent === "Połącz aplikację, aby dodawać zadania." ||
+               $("quickTaskStatus").textContent.includes("Workera v1.6.")) {
+      setStatus("quickTaskStatus", "Wpisz zadanie i naciśnij Enter lub „+ Dodaj”.", false);
     }
     setStatus("syncStatus", "Zaktualizowano: " + new Date().toLocaleTimeString("pl-PL"), false);
   }
@@ -520,6 +523,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
       key = inputKey;
       try { localStorage.setItem(STORAGE_KEY, key); } catch (_) {}
       $("apiKey").value = "";
+      updateQuickTaskAvailability();
       refreshWater();
     } catch (error) {
       console.error("Life OS dashboard:", stage, error);
