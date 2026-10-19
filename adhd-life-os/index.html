@@ -100,6 +100,34 @@ button.secondary{background:#153648;color:#e0f8f8;border-color:#377285}
 body[data-active-screen]:not([data-active-screen="home"]) #connected{display:block}
 @media(min-width:800px){.bottom-nav{bottom:14px;border-bottom:1px solid rgba(63,175,187,.24);border-radius:19px}.app{padding-bottom:130px}}
 @media(prefers-reduced-motion:reduce){.bottom-nav .nav-item{transition:none}}
+
+/* HydroTank MVP: water remaining in a bottle, completion in an outer HUD ring. */
+.hydro{--accent:#6eeafb;--glow:#145677;background:radial-gradient(ellipse at 52% 38%,#12435a85,transparent 68%),linear-gradient(160deg,#092535,#071621);border-color:#32869a}
+.hydro::before{width:260px;height:260px;right:calc(50% - 130px);top:80px;border-color:#41a7bf38}
+.hydro-panel{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:6px;align-items:center;min-height:267px}
+.hydro-visual{position:relative;display:grid;place-items:center;min-width:0}
+.hydro-visual svg{width:min(100%,205px);height:auto;filter:drop-shadow(0 0 13px #27d5ed33)}
+.hydro-ring{transform:rotate(-90deg);transform-origin:110px 132px;stroke-dasharray:691.15;stroke-dashoffset:var(--ring-offset,691.15);transition:stroke-dashoffset .55s ease}
+.hydro-water{transition:y .55s ease,height .55s ease}
+.hydro-data{min-width:0;display:flex;flex-direction:column;gap:9px}
+.hydro-micro{font-size:10px;letter-spacing:.1em;color:#91c4d2}
+.hydro-value{font-size:clamp(20px,5vw,28px);font-weight:800;color:#e7ffff;line-height:1.1;overflow-wrap:anywhere}
+.hydro-line{font-size:12px;color:#b9d6df;line-height:1.5}
+.hydro-preset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.hydro-preset{min-width:0;background:#12394b;border:1px solid #357587;color:#c4faff;padding:12px 4px;font-weight:750;border-radius:13px;font-size:13px}
+.hydro-preset:active{transform:scale(.97)}
+.hydro-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:13px 0 3px;flex-wrap:wrap}
+.hydro-toolbar button{font-size:12px;padding:8px 12px}
+.hydro-feedback{min-height:18px;color:#9adce5;font-size:11px;margin-top:8px}
+.hydro-history{font-size:11px;color:#b0cfd9;margin-top:8px;line-height:1.8}
+.hydro-history ol{padding-left:20px;margin:4px 0}
+.hydro-goal-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 0}
+.hydro-goal-form label{font-size:12px;color:#b4d1dc}
+.hydro-goal-form input{width:90px;background:#061d2d;color:white;border:1px solid #34758a;border-radius:9px;padding:8px;font-size:14px}
+.hydro-goal-form button{font-size:12px;padding:9px 11px}
+.hydro-celebrate{color:#8df6ca}
+@media(max-width:350px){.hydro-panel{grid-template-columns:1fr}.hydro-visual svg{max-width:180px}.hydro-data{align-items:center;text-align:center}}
+@media(prefers-reduced-motion:reduce){.hydro-ring,.hydro-water{transition:none}.hydro-preset:active{transform:none}}
 </style>
 </head>
 <body>
@@ -141,6 +169,54 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
 <section class="widget widget-focus" data-screen="home" aria-labelledby="focusTitle"><div class="widget-heading"><span class="widget-kicker">01 · TRYB SKUPIENIA</span><h2 id="focusTitle">✨ Jedna rzecz na teraz</h2></div><div id="focus" class="widget-content"></div></section>
 <section class="widget widget-missions" data-screen="home" aria-labelledby="missionsTitle"><div class="widget-heading"><span class="widget-kicker">02 · PLAN OPERACYJNY</span><h2 id="missionsTitle">🎯 Top 5 misji</h2></div><div id="tasks" class="widget-content"></div></section>
 <section class="widget widget-missions" data-screen="tasks" aria-labelledby="allTasksTitle"><div class="widget-heading"><span class="widget-kicker">LISTA ZADAŃ</span><h2 id="allTasksTitle">🎯 Zadania</h2></div><div id="tasksAll" class="widget-content"></div></section>
+
+<section class="widget hydro" data-screen="habits" aria-labelledby="hydroTitle">
+  <div class="widget-heading"><span class="widget-kicker">HYDRO CONTROL · DZIŚ</span><h2 id="hydroTitle">💧 Zbiornik nawodnienia</h2></div>
+  <div class="hydro-panel">
+    <div class="hydro-visual">
+      <svg viewBox="0 0 220 265" role="img" aria-label="Butelka pokazująca ilość wody pozostałą do dziennego celu">
+        <defs>
+          <clipPath id="hydroClip"><path d="M94 51 L94 67 Q94 77 75 92 Q64 104 64 124 L64 221 Q64 232 76 232 L144 232 Q156 232 156 221 L156 124 Q156 104 145 92 Q126 77 126 67 L126 51 Z"/></clipPath>
+          <linearGradient id="hydroFill" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#77f7ff"/><stop offset="1" stop-color="#1578c7"/></linearGradient>
+        </defs>
+        <circle cx="110" cy="132" r="110" fill="none" stroke="#2a6271" stroke-width="2" stroke-dasharray="2 12" opacity=".62"/>
+        <circle cx="110" cy="132" r="99" fill="none" stroke="#1a5267" stroke-width="8" opacity=".8"/>
+        <circle id="hydroRing" class="hydro-ring" cx="110" cy="132" r="99" fill="none" stroke="#6beeff" stroke-width="8" stroke-linecap="round" style="--ring-offset:622.04" />
+        <rect x="93" y="37" width="34" height="19" rx="5" fill="#245263" stroke="#a2f0f8" stroke-width="2"/>
+        <path d="M94 51 L94 67 Q94 77 75 92 Q64 104 64 124 L64 221 Q64 232 76 232 L144 232 Q156 232 156 221 L156 124 Q156 104 145 92 Q126 77 126 67 L126 51 Z" fill="#63d3e9" fill-opacity=".07" stroke="#a9e9ed" stroke-width="2.8"/>
+        <g clip-path="url(#hydroClip)"><rect id="hydroWater" class="hydro-water" x="62" y="65" width="96" height="167" fill="url(#hydroFill)" opacity=".85"/></g>
+        <g stroke="#d9ffff" stroke-width="1" opacity=".6"><path d="M69 132h10 M141 132h10 M69 165h10 M141 165h10 M69 198h10 M141 198h10"/></g>
+        <text id="hydroBottlePercent" x="110" y="160" text-anchor="middle" font-size="18" font-weight="800" fill="#fff">100%</text>
+        <text x="110" y="175" text-anchor="middle" font-size="8" fill="#d6ffff" letter-spacing="1">ZOSTAŁO</text>
+      </svg>
+    </div>
+    <div class="hydro-data">
+      <div class="hydro-micro">DO CELU POZOSTAŁO</div>
+      <div id="hydroRemaining" class="hydro-value" aria-live="polite">2 000 ml</div>
+      <div id="hydroConsumed" class="hydro-line">Wypite: 0 / 2 000 ml</div>
+      <div id="hydroDayStatus" class="hydro-line">Pierwsza porcja czeka 💧</div>
+    </div>
+  </div>
+  <div class="hydro-micro">DODAJ WYPITĄ PORCJĘ</div>
+  <div class="hydro-preset-grid">
+    <button class="hydro-preset" type="button" data-water-amount="150">+150 ml</button>
+    <button class="hydro-preset" type="button" data-water-amount="250">+250 ml</button>
+    <button class="hydro-preset" type="button" data-water-amount="500">+500 ml</button>
+  </div>
+  <div class="hydro-toolbar">
+    <button id="hydroUndo" type="button" class="secondary">↶ Cofnij ostatnie</button>
+    <button id="hydroGoalToggle" type="button" class="secondary" aria-expanded="false">⚙ Cel</button>
+    <button id="hydroHistoryToggle" type="button" class="secondary" aria-expanded="false">Historia</button>
+  </div>
+  <form id="hydroGoalForm" class="hydro-goal-form" hidden>
+    <label for="hydroGoalInput">Cel dzienny (ml)</label>
+    <input id="hydroGoalInput" type="number" min="250" max="10000" step="50" value="2000" required>
+    <button type="submit">Zapisz</button>
+  </form>
+  <div id="hydroFeedback" class="hydro-feedback" role="status"></div>
+  <div id="hydroHistory" class="hydro-history" hidden></div>
+  <div class="muted">Historia przechowywana lokalnie w tej przeglądarce — jeszcze bez synchronizacji z Notion.</div>
+</section>
 <section class="widget widget-rituals" data-screen="habits" aria-labelledby="ritualsTitle"><div class="widget-heading"><span class="widget-kicker">03 · DOBRE NAWYKI</span><h2 id="ritualsTitle">☀️ Dzisiejsze rytuały</h2></div><div id="habits" class="widget-content"></div></section>
 <section class="widget widget-deadline" data-screen="home" aria-labelledby="deadlineTitle"><div class="widget-heading"><span class="widget-kicker">04 · NA HORYZONCIE</span><h2 id="deadlineTitle">📅 Najbliższy termin</h2></div><div id="deadline" class="widget-content"></div></section>
 <section class="widget widget-inbox" data-screen="notes" aria-labelledby="notesTitle"><div class="widget-heading"><span class="widget-kicker">05 · PRZECHWYĆ MYŚL</span><h2 id="notesTitle">📥 Szybki inbox</h2></div><div id="notes" class="widget-content"></div></section>
@@ -377,6 +453,97 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     $("apiKey").value = "";
     setStatus("loginStatus", "Rozłączono. Klucz usunięto z pamięci aplikacji.", false);
   });
+
+  /* HydroTank MVP: local-only timestamped event history, scoped to this browser. */
+  const WATER_KEY = "adhd-life-os.hydrotank.v1";
+  const waterToday = () => new Date().toLocaleDateString("sv-SE");
+  const waterNumber = n => new Intl.NumberFormat("pl-PL").format(n);
+  let waterState = {goal:2000,entries:[]};
+  try {
+    const raw = JSON.parse(localStorage.getItem(WATER_KEY) || "null");
+    if (raw && Number.isInteger(raw.goal) && raw.goal>=250 && raw.goal<=10000 && Array.isArray(raw.entries)) {
+      waterState.goal=raw.goal;
+      waterState.entries=raw.entries.filter(e => e && typeof e.id==="string" && typeof e.date==="string" && Number.isInteger(e.ml) && e.ml>0 && e.ml<=2000 && typeof e.at==="string").slice(-3000);
+    }
+  } catch (_) {}
+  let waterSavingError = false;
+  function saveWater() {
+    try {localStorage.setItem(WATER_KEY,JSON.stringify(waterState));waterSavingError=false;return true}
+    catch (_) {waterSavingError=true;return false}
+  }
+  function waterEntriesForToday(){return waterState.entries.filter(e=>e.date===waterToday())}
+  function renderWater(){
+    const entries=waterEntriesForToday();
+    const drank=entries.reduce((sum,e)=>sum+e.ml,0),goal=waterState.goal,remaining=Math.max(0,goal-drank);
+    const restPercent=remaining/goal,completion=Math.min(1,drank/goal);
+    $("hydroRemaining").textContent=waterNumber(remaining)+" ml";
+    $("hydroConsumed").textContent="Wypite: "+waterNumber(drank)+" / "+waterNumber(goal)+" ml";
+    $("hydroBottlePercent").textContent=Math.round(restPercent*100)+"%";
+    const waterHeight=167*restPercent;
+    $("hydroWater").setAttribute("y",String(232-waterHeight));
+    $("hydroWater").setAttribute("height",String(waterHeight));
+    $("hydroRing").style.strokeDasharray=String(2*Math.PI*99);
+    $("hydroRing").style.setProperty("--ring-offset",String(2*Math.PI*99*(1-completion)));
+    $("hydroDayStatus").textContent=remaining===0?(drank>goal?"✓ Cel osiągnięty · +"+waterNumber(drank-goal)+" ml ponad plan":"✓ Cel osiągnięty!"):(drank?"Każdy łyk przybliża Cię do celu.":"Pierwsza porcja czeka 💧");
+    $("hydroDayStatus").classList.toggle("hydro-celebrate",remaining===0);
+    $("hydroUndo").disabled=entries.length===0;
+    $("hydroGoalInput").value=String(goal);
+    if(waterSavingError)$("hydroFeedback").textContent="Nie udało się zapisać historii w przeglądarce.";
+    renderWaterHistory();
+  }
+  function renderWaterHistory(){
+    const box=$("hydroHistory");
+    box.replaceChildren();
+    const today=waterToday(), days=new Map();
+    for(const e of waterState.entries){
+      if(e.date<=today)days.set(e.date,(days.get(e.date)||0)+e.ml);
+    }
+    const entries=Array.from(days.entries()).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,7);
+    const heading=document.createElement("strong");heading.textContent="Ostatnie dni z wpisami";box.appendChild(heading);
+    const list=document.createElement("ol");
+    for(const [date,ml] of entries){const li=document.createElement("li");li.textContent=date+" · "+waterNumber(ml)+" ml";list.appendChild(li)}
+    if(!entries.length){const p=document.createElement("div");p.textContent="Brak zapisanych porcji.";box.appendChild(p)}
+    else box.appendChild(list);
+  }
+  document.querySelectorAll("[data-water-amount]").forEach(btn=>btn.addEventListener("click",()=>{
+    const ml=Number(btn.dataset.waterAmount);
+    if(![150,250,500].includes(ml))return;
+    const entry={id:String(Date.now())+"-"+Math.random().toString(36).slice(2),date:waterToday(),at:new Date().toISOString(),ml};
+    waterState.entries.push(entry);
+    if(!saveWater())waterState.entries.pop();
+    $("hydroFeedback").textContent=waterSavingError?"Zapis niedostępny. Porcja nie została dodana.":"Dodano "+ml+" ml";
+    renderWater();
+  }));
+  $("hydroUndo").addEventListener("click",()=>{
+    const day=waterToday();
+    const index=waterState.entries.findLastIndex(e=>e.date===day);
+    if(index<0)return;
+    const removed=waterState.entries.splice(index,1)[0];
+    if(!saveWater())waterState.entries.splice(index,0,removed);
+    $("hydroFeedback").textContent=waterSavingError?"Nie można cofnąć — pamięć przeglądarki jest niedostępna.":"Cofnięto "+removed.ml+" ml";
+    renderWater();
+  });
+  $("hydroGoalToggle").addEventListener("click",()=>{
+    $("hydroGoalForm").hidden=!$("hydroGoalForm").hidden;
+    $("hydroGoalToggle").setAttribute("aria-expanded",String(!$("hydroGoalForm").hidden));
+  });
+  $("hydroHistoryToggle").addEventListener("click",()=>{
+    $("hydroHistory").hidden=!$("hydroHistory").hidden;
+    $("hydroHistoryToggle").setAttribute("aria-expanded",String(!$("hydroHistory").hidden));
+  });
+  $("hydroGoalForm").addEventListener("submit",e=>{
+    e.preventDefault();
+    const goal=Number($("hydroGoalInput").value);
+    if(!Number.isInteger(goal)||goal<250||goal>10000||goal%50!==0)return;
+    const previous=waterState.goal;waterState.goal=goal;
+    if(!saveWater())waterState.goal=previous;
+    $("hydroFeedback").textContent=waterSavingError?"Nie udało się zapisać celu.":"Zmieniono cel na "+waterNumber(goal)+" ml";
+    $("hydroGoalForm").hidden=true;
+    $("hydroGoalToggle").setAttribute("aria-expanded","false");
+    renderWater();
+  });
+  renderWater();
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)renderWater()});
   if (key) load(key);
 })();
 </script>
