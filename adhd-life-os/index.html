@@ -572,6 +572,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   let waterRemote = null, waterBusy = false, waterReady = false;
   let waterGeneration = 0, waterJournal = {days:{}};
   let waterStoreFailed = false, waterVersionSupported = false;
+  let waterObservedDate = waterDate(), waterRolloverQueued = false;
 
   try {
     const saved = JSON.parse(localStorage.getItem(WATER_JOURNAL_KEY) || "null");
@@ -613,20 +614,22 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     return !!key && !$("connected").hidden && waterReady && !waterBusy;
   }
   function renderWater() {
-    const row=liveDay(), goal=row?.goal || waterRemote?.goal || 2000;
-    const ml=row?.ml ?? waterRemote?.consumed ?? 0;
+    const row=liveDay(), currentDate=waterDate();
+    const goal=row?.goal || waterRemote?.goal || 2000;
+    const ml=row?.ml ?? (waterRemote?.date===currentDate ? waterRemote.consumed : 0);
     const remaining=Math.max(0,goal-ml), fraction=remaining/goal;
+    const showToday=!!key && !$("connected").hidden && (waterReady || !!row);
     const circumference=2*Math.PI*99;
-    $("hydroRemaining").textContent=waterReady?waterNumber(remaining)+" ml":"—";
-    $("hydroConsumed").textContent=waterReady?"Wypite: "+waterNumber(ml)+" / "+waterNumber(goal)+" ml":"Oczekiwanie na dane";
-    $("hydroBottlePercent").textContent=waterReady?Math.round(fraction*100)+"%":"—";
+    $("hydroRemaining").textContent=showToday?waterNumber(remaining)+" ml":"—";
+    $("hydroConsumed").textContent=showToday?"Wypite: "+waterNumber(ml)+" / "+waterNumber(goal)+" ml":"Oczekiwanie na dane";
+    $("hydroBottlePercent").textContent=showToday?Math.round(fraction*100)+"%":"—";
     $("hydroWater").setAttribute("y",String(232-167*fraction));
     $("hydroWater").setAttribute("height",String(167*fraction));
     $("hydroRing").style.strokeDasharray=String(circumference);
     $("hydroRing").style.setProperty("--ring-offset",String(circumference*(fraction)));
-    $("hydroDayStatus").textContent=!waterReady?"Połącz aplikację, aby pobrać cel.":
+    $("hydroDayStatus").textContent=!showToday?"Połącz aplikację, aby pobrać cel.":
       remaining===0?"✓ Dzisiejszy cel osiągnięty":(ml?"Postęp zapisany na tym urządzeniu.":"Pierwsza porcja czeka 💧");
-    $("hydroDayStatus").classList.toggle("hydro-celebrate",waterReady&&remaining===0);
+    $("hydroDayStatus").classList.toggle("hydro-celebrate",showToday&&remaining===0);
     const active=waterButtonState();
     waterButtons.forEach((button,i)=>{
       const amount=waterRemote?.presets?.[i] || [150,250,500][i];
@@ -747,6 +750,10 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     } finally {
       if(generation===waterGeneration){waterBusy=false;renderWater();}
     }
+    if (waterRolloverQueued && !waterBusy) {
+      waterRolloverQueued=false;
+      if(key && !$("connected").hidden) refreshWater();
+    }
   }
   async function refreshWater() {
     if (!key||$("connected").hidden||waterBusy)return;
@@ -755,15 +762,25 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     try {
       const remote=await waterRequest();
       if(generation!==waterGeneration)return;
-      mergeWaterRemote(remote);
-      waterNote(waterVersionSupported?"Połączono · porcje zapisują się lokalnie do rozliczenia dnia.":
-        "Worker v1.4: postęp lokalny. Wdróż v1.5, aby zapisywać wyniki dni.",!waterVersionSupported);
+      if (remote.date!==waterDate()) {
+        // Midnight happened during the request: don't merge yesterday into today.
+        checkWaterDayBoundary();
+        waterRolloverQueued=true;
+      } else {
+        mergeWaterRemote(remote);
+        waterNote(waterVersionSupported?"Połączono · porcje zapisują się lokalnie do rozliczenia dnia.":
+          "Worker v1.4: postęp lokalny. Wdróż v1.5, aby zapisywać wyniki dni.",!waterVersionSupported);
+      }
     } catch(error) {
       if(generation!==waterGeneration)return;
       console.error("HydroTank read:",error);
       waterNote("Nie udało się pobrać ustawień: "+error.message,true);
     } finally {
       if(generation===waterGeneration){waterBusy=false;renderWater();}
+    }
+    if(waterRolloverQueued && !waterBusy) {
+      waterRolloverQueued=false;
+      if(key && !$("connected").hidden) return refreshWater();
     }
     if(waterReady) await syncWaterDays();
   }
@@ -826,20 +843,58 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
     } finally {
       if(generation===waterGeneration){waterBusy=false;renderWater();}
     }
-    if(waterReady) syncWaterDays();
+    if (waterRolloverQueued && !waterBusy) {
+      waterRolloverQueued=false;
+      if(key && !$("connected").hidden) refreshWater();
+    } else if(waterReady) syncWaterDays();
   });
   function resetWater() {
     waterGeneration++;waterBusy=false;waterReady=false;
+    waterRolloverQueued=false;
     waterRemote=null;waterVersionSupported=false;
     waterNote("Połącz aplikację, aby pobrać HydroTank.");
     renderWater();
   }
+  // Automatically reset at Polish midnight without reloading the whole app.
+  // A lightweight check runs on every wall-clock minute, respecting DST via waterDate().
+  // Focus and visibility events cover browsers that suspend background timers.
+  function checkWaterDayBoundary() {
+    const today=waterDate();
+    if (today===waterObservedDate) return false;
+    const yesterday=waterObservedDate;
+    waterObservedDate=today;
+    if (!waterJournal.days[today]) {
+      waterJournal.days[today]={
+        ml:0, goal:waterRemote?.goal || waterJournal.days[yesterday]?.goal || 2000,
+        steps:[],syncedStatus:null,reversed:false
+      };
+      saveWaterJournal();
+    }
+    renderWater();
+    if (!key || $("connected").hidden) return true;
+    waterNote("Nowy dzień — licznik zresetowany. Rozliczam poprzedni dzień w Notion…");
+    if (waterBusy) waterRolloverQueued=true;
+    else refreshWater();
+    return true;
+  }
+  function scheduleWaterBoundaryCheck() {
+    const now=new Date();
+    const msToNextMinute=(60-now.getSeconds())*1000-now.getMilliseconds()+150;
+    window.setTimeout(()=>{
+      checkWaterDayBoundary();
+      scheduleWaterBoundaryCheck();
+    },msToNextMinute);
+  }
   resetWater();
+  scheduleWaterBoundaryCheck();
   document.addEventListener("visibilitychange",()=>{
-    if(!document.hidden && document.body.dataset.activeScreen==="habits")refreshWater();
+    if (!document.hidden && !checkWaterDayBoundary() && document.body.dataset.activeScreen==="habits") {
+      refreshWater();
+    }
   });
+  window.addEventListener("focus",checkWaterDayBoundary);
   navItems.forEach(item=>item.addEventListener("click",()=>{
-    if(item.dataset.target==="habits")refreshWater();
+    if(item.dataset.target==="habits" && !checkWaterDayBoundary())refreshWater();
   }));
   if (key) load(key);
 })();
