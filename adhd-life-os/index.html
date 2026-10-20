@@ -573,6 +573,7 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
   let waterGeneration = 0, waterJournal = {days:{}};
   let waterStoreFailed = false, waterVersionSupported = false;
   let waterObservedDate = waterDate(), waterRolloverQueued = false;
+  let waterStaleDateRetries = 0;
 
   try {
     const saved = JSON.parse(localStorage.getItem(WATER_JOURNAL_KEY) || "null");
@@ -763,10 +764,16 @@ body[data-active-screen]:not([data-active-screen="home"]) #connected{display:blo
       const remote=await waterRequest();
       if(generation!==waterGeneration)return;
       if (remote.date!==waterDate()) {
-        // Midnight happened during the request: don't merge yesterday into today.
+        // Midnight can occur during a GET; limit retries if device/server clocks differ.
         checkWaterDayBoundary();
-        waterRolloverQueued=true;
+        if (waterStaleDateRetries<2) {
+          waterStaleDateRetries++;
+          waterRolloverQueued=true;
+        } else {
+          waterNote("Daty urządzenia i Workera nie są jeszcze zgodne. Ponów synchronizację za chwilę.",true);
+        }
       } else {
+        waterStaleDateRetries=0;
         mergeWaterRemote(remote);
         waterNote(waterVersionSupported?"Połączono · porcje zapisują się lokalnie do rozliczenia dnia.":
           "Worker v1.4: postęp lokalny. Wdróż v1.5, aby zapisywać wyniki dni.",!waterVersionSupported);
